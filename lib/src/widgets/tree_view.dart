@@ -405,7 +405,7 @@ class _TreeViewState extends State<TreeView> with TickerProviderStateMixin {
     return baseStyle;
   }
 
-  /// 확장 가능한 아이템 레이아웃 (완전히 테마 적용)
+  /// 확장 가능한 아이템 레이아웃 (hover와 선택 영역 일치)
   Widget _buildExpandableItemLayout({
     required TreeNode node,
     required int depth,
@@ -427,10 +427,6 @@ class _TreeViewState extends State<TreeView> with TickerProviderStateMixin {
         padding: EdgeInsets.symmetric(
           horizontal: theme.nodeHorizontalPadding,
           vertical: theme.nodeVerticalPadding,
-        ),
-        decoration: BoxDecoration(
-          color: _getNodeBackgroundColor(node),
-          borderRadius: theme.nodeBorderRadius,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -457,6 +453,10 @@ class _TreeViewState extends State<TreeView> with TickerProviderStateMixin {
                     : null,
                 child: AnimatedContainer(
                   duration: theme.hoverAnimationDuration,
+                  decoration: BoxDecoration(
+                    color: _getNodeBackgroundColor(node), // 선택된 배경색을 여기로 이동
+                    borderRadius: theme.nodeBorderRadius,
+                  ),
                   padding: EdgeInsets.symmetric(
                     vertical: theme.nodeSpacing,
                     horizontal: 8.0,
@@ -481,7 +481,7 @@ class _TreeViewState extends State<TreeView> with TickerProviderStateMixin {
     );
   }
 
-  /// Account 아이템 레이아웃 (완전히 테마 적용)
+  /// Account 아이템 레이아웃 (hover와 선택 영역 일치)
   Widget _buildAccountItemLayout({
     required TreeNode node,
     required int depth,
@@ -502,10 +502,6 @@ class _TreeViewState extends State<TreeView> with TickerProviderStateMixin {
         padding: EdgeInsets.symmetric(
           horizontal: theme.nodeHorizontalPadding,
           vertical: theme.nodeVerticalPadding,
-        ),
-        decoration: BoxDecoration(
-          color: _getNodeBackgroundColor(node),
-          borderRadius: theme.nodeBorderRadius,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -540,6 +536,10 @@ class _TreeViewState extends State<TreeView> with TickerProviderStateMixin {
                     : null,
                 child: AnimatedContainer(
                   duration: theme.hoverAnimationDuration,
+                  decoration: BoxDecoration(
+                    color: _getNodeBackgroundColor(node), // 선택된 배경색을 여기로 이동
+                    borderRadius: theme.nodeBorderRadius,
+                  ),
                   padding: EdgeInsets.symmetric(
                     vertical: theme.nodeSpacing,
                     horizontal: 8.0,

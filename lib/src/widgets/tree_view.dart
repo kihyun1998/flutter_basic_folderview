@@ -64,7 +64,10 @@ class _TreeViewState extends State<TreeView> {
   void _initializeExpandedStates(List<TreeNode> nodes) {
     for (var node in nodes) {
       if (node is Folder || node is Node) {
-        _expandedNodes[node.id] ??= false;
+        // 노드의 초기 확장 상태를 TreeNodeState에서 가져와서 적용
+        // 하지만 _expandedNodes가 이미 설정되어 있다면 그것을 우선시
+        _expandedNodes[node.id] ??= node.data.isExpanded;
+
         if (node.children.isNotEmpty) {
           _initializeExpandedStates(node.children.cast<TreeNode>());
         }

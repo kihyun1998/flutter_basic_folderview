@@ -41,11 +41,31 @@ class _TreeViewPageState extends State<TreeViewPage> {
   }
 
   void _onAccountDoubleClick(Account account) {
+    // 새로운 dynamic metadata 기능 시연
+    final metadata = account.data.metadata;
+    String metadataInfo = 'No metadata';
+
+    if (metadata != null) {
+      if (metadata is String) {
+        metadataInfo = 'String: "$metadata"';
+      } else if (metadata is Map) {
+        metadataInfo = 'Map: ${metadata.toString()}';
+      } else if (metadata is int) {
+        metadataInfo = 'Integer: $metadata';
+      } else {
+        metadataInfo = '${metadata.runtimeType}: $metadata';
+      }
+    }
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Account Double Clicked'),
-        content: Text('Account: ${account.name}\nID: ${account.id}'),
+        content: Text(
+          'Account: ${account.name}\n'
+          'ID: ${account.id}\n'
+          'Metadata: $metadataInfo',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),

@@ -180,6 +180,12 @@ extension TreeNodeExtensions on TreeNode {
   /// 노드가 선택되어 있는지 확인
   bool get isSelected => data.isSelected;
 
+  /// 노드가 활성화되어 있는지 확인
+  bool get isEnabled => data.isEnabled;
+
+  /// 노드가 보이는지 확인
+  bool get isVisible => data.isVisible;
+
   /// 메타데이터가 있는지 확인
   bool get hasMetadata => data.hasMetadata;
 

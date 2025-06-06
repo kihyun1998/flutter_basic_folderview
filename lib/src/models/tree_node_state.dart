@@ -1,13 +1,15 @@
 class TreeNodeState {
   final bool isSelected;
   final bool isExpanded;
-  final String status;
+  final bool isEnabled;
+  final bool isVisible;
   final dynamic metadata; // Map, String, int, 커스텀 객체 등 무엇이든 가능
 
   TreeNodeState({
     this.isSelected = false,
     this.isExpanded = false,
-    this.status = 'normal',
+    this.isEnabled = true,
+    this.isVisible = true,
     this.metadata,
   });
 
@@ -15,8 +17,20 @@ class TreeNodeState {
     return TreeNodeState(
       isSelected: false,
       isExpanded: false,
-      status: 'normal',
+      isEnabled: true,
+      isVisible: true,
       metadata: null,
+    );
+  }
+
+  // 사용자의 기존 코드에서 사용되는 fromPathUser 팩토리
+  factory TreeNodeState.fromPathUser(dynamic pathUser) {
+    return TreeNodeState(
+      isSelected: false,
+      isExpanded: false,
+      isEnabled: true,
+      isVisible: true,
+      metadata: pathUser, // 바로 pathUser를 metadata로 저장
     );
   }
 
@@ -25,7 +39,8 @@ class TreeNodeState {
     return TreeNodeState(
       isSelected: false,
       isExpanded: false,
-      status: 'normal',
+      isEnabled: true,
+      isVisible: true,
       metadata: metadata,
     );
   }
@@ -34,7 +49,8 @@ class TreeNodeState {
     return TreeNodeState(
       isSelected: false,
       isExpanded: false,
-      status: 'normal',
+      isEnabled: true,
+      isVisible: true,
       metadata: metadata,
     );
   }
@@ -43,7 +59,8 @@ class TreeNodeState {
     return TreeNodeState(
       isSelected: false,
       isExpanded: false,
-      status: 'normal',
+      isEnabled: true,
+      isVisible: true,
       metadata: metadata,
     );
   }
@@ -52,7 +69,39 @@ class TreeNodeState {
     return TreeNodeState(
       isSelected: false,
       isExpanded: false,
-      status: 'normal',
+      isEnabled: true,
+      isVisible: true,
+      metadata: metadata,
+    );
+  }
+
+  // 상태별 팩토리들
+  factory TreeNodeState.disabled({dynamic metadata}) {
+    return TreeNodeState(
+      isSelected: false,
+      isExpanded: false,
+      isEnabled: false,
+      isVisible: true,
+      metadata: metadata,
+    );
+  }
+
+  factory TreeNodeState.hidden({dynamic metadata}) {
+    return TreeNodeState(
+      isSelected: false,
+      isExpanded: false,
+      isEnabled: true,
+      isVisible: false,
+      metadata: metadata,
+    );
+  }
+
+  factory TreeNodeState.selected({dynamic metadata}) {
+    return TreeNodeState(
+      isSelected: true,
+      isExpanded: false,
+      isEnabled: true,
+      isVisible: true,
       metadata: metadata,
     );
   }
@@ -60,13 +109,15 @@ class TreeNodeState {
   TreeNodeState copyWith({
     bool? isSelected,
     bool? isExpanded,
-    String? status,
+    bool? isEnabled,
+    bool? isVisible,
     dynamic metadata,
   }) {
     return TreeNodeState(
       isSelected: isSelected ?? this.isSelected,
       isExpanded: isExpanded ?? this.isExpanded,
-      status: status ?? this.status,
+      isEnabled: isEnabled ?? this.isEnabled,
+      isVisible: isVisible ?? this.isVisible,
       metadata: metadata ?? this.metadata,
     );
   }
@@ -137,7 +188,7 @@ class TreeNodeState {
 
   @override
   String toString() {
-    return 'TreeNodeState(isSelected: $isSelected, isExpanded: $isExpanded, status: $status, metadata: $metadata)';
+    return 'TreeNodeState(isSelected: $isSelected, isExpanded: $isExpanded, isEnabled: $isEnabled, isVisible: $isVisible, metadata: $metadata)';
   }
 
   @override
@@ -146,7 +197,8 @@ class TreeNodeState {
     return other is TreeNodeState &&
         other.isSelected == isSelected &&
         other.isExpanded == isExpanded &&
-        other.status == status &&
+        other.isEnabled == isEnabled &&
+        other.isVisible == isVisible &&
         other.metadata == metadata;
   }
 
@@ -154,7 +206,8 @@ class TreeNodeState {
   int get hashCode {
     return isSelected.hashCode ^
         isExpanded.hashCode ^
-        status.hashCode ^
+        isEnabled.hashCode ^
+        isVisible.hashCode ^
         metadata.hashCode;
   }
 }

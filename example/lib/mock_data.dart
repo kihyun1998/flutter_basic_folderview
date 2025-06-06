@@ -1,21 +1,24 @@
 import 'package:flutter_basic_folderview/flutter_basic_folderview.dart';
 
-// 커스텀 메타데이터 클래스 예제들
+// 커스텀 메타데이터 클래스들
 class UserInfo {
   final String name;
   final int id;
   final String role;
   final DateTime lastLogin;
+  final bool isActive;
 
   UserInfo({
     required this.name,
     required this.id,
     required this.role,
     required this.lastLogin,
+    this.isActive = true,
   });
 
   @override
-  String toString() => 'UserInfo(name: $name, id: $id, role: $role)';
+  String toString() =>
+      'UserInfo(name: $name, id: $id, role: $role, active: $isActive)';
 }
 
 class ServerInfo {
@@ -23,24 +26,25 @@ class ServerInfo {
   final int port;
   final String status;
   final double cpuUsage;
+  final bool isOnline;
 
   ServerInfo({
     required this.host,
     required this.port,
     required this.status,
     required this.cpuUsage,
+    this.isOnline = true,
   });
 
   @override
   String toString() =>
-      'ServerInfo(host: $host:$port, status: $status, cpu: $cpuUsage%)';
+      'ServerInfo(host: $host:$port, status: $status, cpu: $cpuUsage%, online: $isOnline)';
 }
 
-class MockData {
-  static List<TreeNode> createTestData() {
-    // 다양한 타입의 메타데이터 사용 예제
-
-    // 1. String 메타데이터를 가진 Account들
+class ImprovedMockData {
+  /// 간단한 테스트 데이터 (enabled/disabled 상태 포함)
+  static List<TreeNode> createSimpleTestData() {
+    // 활성화된 계정들
     final account1 = Account(
       id: 'acc_1',
       name: 'admin@example.com',
@@ -53,48 +57,27 @@ class MockData {
       data: TreeNodeState.withStringMetadata("regular_user_456"),
     );
 
-    // 2. 커스텀 객체 메타데이터를 가진 Account들
+    // 비활성화된 계정
     final account3 = Account(
       id: 'acc_3',
+      name: 'disabled@example.com',
+      data: TreeNodeState.disabled(metadata: "disabled_user_789"),
+    );
+
+    // 커스텀 객체 메타데이터를 가진 계정
+    final account4 = Account(
+      id: 'acc_4',
       name: 'guest@domain.com',
       data: TreeNodeState.withMetadata(UserInfo(
         name: 'Guest User',
         id: 789,
         role: 'guest',
         lastLogin: DateTime.now().subtract(const Duration(days: 1)),
+        isActive: true,
       )),
     );
 
-    final account4 = Account(
-      id: 'acc_4',
-      name: 'test@domain.com',
-      data: TreeNodeState.withMetadata(UserInfo(
-        name: 'Test User',
-        id: 101,
-        role: 'tester',
-        lastLogin: DateTime.now(),
-      )),
-    );
-
-    // 3. Map 메타데이터를 가진 Account들
-    final account5 = Account(
-      id: 'acc_5',
-      name: 'manager@domain.com',
-      data: TreeNodeState.withMapMetadata({
-        'department': 'Engineering',
-        'level': 'Senior',
-        'projects': ['ProjectA', 'ProjectB'],
-        'budget': 50000,
-      }),
-    );
-
-    final account6 = Account(
-      id: 'acc_6',
-      name: 'intern@domain.com',
-      data: TreeNodeState.withIntMetadata(2024), // 입사 연도
-    );
-
-    // 4. 서버 정보를 메타데이터로 가진 Node들
+    // 활성화된 노드
     final node1 = Node(
       id: 'node_1',
       name: 'Web Server',
@@ -104,49 +87,26 @@ class MockData {
         port: 80,
         status: 'running',
         cpuUsage: 25.5,
+        isOnline: true,
       )),
     );
 
+    // 비활성화된 노드
     final node2 = Node(
       id: 'node_2',
-      name: 'Database Server',
+      name: 'Maintenance Server',
       children: [account3],
-      data: TreeNodeState.withMetadata(ServerInfo(
+      data: TreeNodeState.disabled(
+          metadata: ServerInfo(
         host: '192.168.1.20',
         port: 5432,
-        status: 'running',
-        cpuUsage: 78.3,
+        status: 'maintenance',
+        cpuUsage: 0.0,
+        isOnline: false,
       )),
     );
 
-    // 5. 간단한 String 메타데이터를 가진 Node
-    final node3 = Node(
-      id: 'node_3',
-      name: 'API Server',
-      children: [account4],
-      data: TreeNodeState.withStringMetadata("api_v2.1.0"),
-    );
-
-    final node4 = Node(
-      id: 'node_4',
-      name: 'Cache Server',
-      children: [account5, account6],
-      data: TreeNodeState.withMapMetadata({
-        'type': 'Redis',
-        'version': '7.0.5',
-        'memory_usage': '2.3GB',
-        'hit_ratio': 0.95,
-      }),
-    );
-
-    // 6. 폴더들 (새로운 TreeNodeState 기반)
-    final subFolder = Folder.create(
-      id: 'folder_sub',
-      name: 'Development',
-      children: [node3],
-      metadata: 'development_environment', // String 메타데이터
-    );
-
+    // 폴더들
     final folder1 = Folder.create(
       id: 'folder_1',
       name: 'Production',
@@ -155,29 +115,28 @@ class MockData {
         'environment': 'production',
         'region': 'us-east-1',
         'criticality': 'high',
-      }, // Map 메타데이터
+      },
     );
 
     final folder2 = Folder.create(
       id: 'folder_2',
-      name: 'Staging',
-      children: [subFolder],
+      name: 'Development',
+      children: [account4],
       metadata: {
-        'environment': 'staging',
+        'environment': 'development',
         'auto_deploy': true,
         'test_coverage': 85.5,
-      }, // Map 메타데이터
+      },
     );
 
-    return [folder1, folder2, node4];
+    return [folder1, folder2];
   }
 
-  // 더 복잡한 테스트 데이터
+  /// 복잡한 테스트 데이터
   static List<TreeNode> createComplexTestData() {
     final List<TreeNode> nodes = [];
 
-    // 대용량 테스트를 위한 데이터 (다양한 메타데이터 타입 사용)
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 5; i++) {
       final folder = Folder.create(
         id: 'root_folder_$i',
         name: 'Root Folder $i',
@@ -188,36 +147,38 @@ class MockData {
         },
       );
 
-      for (int j = 0; j < 2; j++) {
+      for (int j = 0; j < 3; j++) {
         final subFolder = Folder.create(
           id: 'sub_folder_${i}_$j',
           name: 'Sub Folder $j',
-          metadata: 'sub_level_${i}_$j', // String 메타데이터
+          metadata: 'sub_level_${i}_$j',
         );
 
-        for (int k = 0; k < 3; k++) {
-          // 서버 노드에 ServerInfo 메타데이터
+        for (int k = 0; k < 4; k++) {
           final node = Node(
             id: 'node_${i}_${j}_$k',
             name: 'Server $i-$j-$k',
             data: TreeNodeState.withMetadata(ServerInfo(
               host: '192.168.$i.$k',
               port: 8000 + k,
-              status: k % 2 == 0 ? 'running' : 'stopped',
+              status: k % 3 == 0
+                  ? 'running'
+                  : (k % 3 == 1 ? 'stopped' : 'maintenance'),
               cpuUsage: (k + 1) * 20.0 + i * 5,
+              isOnline: k % 3 != 1,
             )),
           );
 
-          for (int l = 0; l < 2; l++) {
-            // 계정에 UserInfo 메타데이터
+          for (int l = 0; l < 3; l++) {
             final account = Account(
               id: 'acc_${i}_${j}_${k}_$l',
               name: 'user$l@server$k.com',
               data: TreeNodeState.withMetadata(UserInfo(
                 name: 'User $i-$j-$k-$l',
                 id: i * 1000 + j * 100 + k * 10 + l,
-                role: l == 0 ? 'admin' : 'user',
+                role: l == 0 ? 'admin' : (l == 1 ? 'user' : 'guest'),
                 lastLogin: DateTime.now().subtract(Duration(hours: l + k)),
+                isActive: l != 2, // guest 계정은 비활성
               )),
             );
             node.children.add(account);
@@ -235,64 +196,284 @@ class MockData {
     return nodes;
   }
 
-  // 메타데이터 사용 예제를 위한 헬퍼 메서드들
-  static void demonstrateMetadataUsage(List<TreeNode> nodes) {
-    print('=== 메타데이터 사용 예제 ===');
+  /// 다양한 상태가 혼재된 테스트 데이터
+  static List<TreeNode> createMixedStatesTestData() {
+    // 선택된 상태의 계정
+    final selectedAccount = Account(
+      id: 'selected_acc',
+      name: 'selected@example.com',
+      data: TreeNodeState.selected(metadata: "selected_user"),
+    );
 
-    void printNodeMetadata(TreeNode node, int depth) {
+    // 비활성화된 계정
+    final disabledAccount = Account(
+      id: 'disabled_acc',
+      name: 'disabled@example.com',
+      data: TreeNodeState.disabled(metadata: "disabled_user"),
+    );
+
+    // 숨겨진 계정
+    final hiddenAccount = Account(
+      id: 'hidden_acc',
+      name: 'hidden@example.com',
+      data: TreeNodeState.hidden(metadata: "hidden_user"),
+    );
+
+    // 일반 계정
+    final normalAccount = Account(
+      id: 'normal_acc',
+      name: 'normal@example.com',
+      data: TreeNodeState.withStringMetadata("normal_user"),
+    );
+
+    // 다양한 상태의 노드들
+    final activeNode = Node(
+      id: 'active_node',
+      name: 'Active Server',
+      children: [selectedAccount, normalAccount],
+      data: TreeNodeState.withStringMetadata("active_server"),
+    );
+
+    final disabledNode = Node(
+      id: 'disabled_node',
+      name: 'Disabled Server',
+      children: [disabledAccount],
+      data: TreeNodeState.disabled(metadata: "disabled_server"),
+    );
+
+    // 확장된 폴더
+    final expandedFolder = Folder(
+      id: 'expanded_folder',
+      name: 'Expanded Folder',
+      children: [activeNode, disabledNode],
+      data: TreeNodeState(
+        isExpanded: true,
+        metadata: "expanded_folder_data",
+      ),
+    );
+
+    // 축소된 폴더
+    final collapsedFolder = Folder(
+      id: 'collapsed_folder',
+      name: 'Collapsed Folder',
+      children: [hiddenAccount],
+      data: TreeNodeState(
+        isExpanded: false,
+        metadata: "collapsed_folder_data",
+      ),
+    );
+
+    return [expandedFolder, collapsedFolder];
+  }
+
+  /// disabled 노드들의 데모 데이터
+  static List<TreeNode> createDisabledNodesDemo() {
+    // 활성 계정들
+    final activeAccount1 = Account(
+      id: 'active_1',
+      name: 'active.user1@company.com',
+      data: TreeNodeState.withStringMetadata("Active user 1"),
+    );
+
+    final activeAccount2 = Account(
+      id: 'active_2',
+      name: 'active.user2@company.com',
+      data: TreeNodeState.withStringMetadata("Active user 2"),
+    );
+
+    // 비활성 계정들
+    final disabledAccount1 = Account(
+      id: 'disabled_1',
+      name: 'disabled.user1@company.com',
+      data: TreeNodeState.disabled(metadata: "Disabled user 1 - Suspended"),
+    );
+
+    final disabledAccount2 = Account(
+      id: 'disabled_2',
+      name: 'disabled.user2@company.com',
+      data: TreeNodeState.disabled(metadata: "Disabled user 2 - Terminated"),
+    );
+
+    final disabledAccount3 = Account(
+      id: 'disabled_3',
+      name: 'disabled.user3@company.com',
+      data: TreeNodeState.disabled(metadata: "Disabled user 3 - On leave"),
+    );
+
+    // 활성 서버
+    final activeServer = Node(
+      id: 'active_server',
+      name: 'Production Server',
+      children: [activeAccount1, activeAccount2],
+      data: TreeNodeState.withMetadata(ServerInfo(
+        host: '10.0.1.100',
+        port: 80,
+        status: 'running',
+        cpuUsage: 45.2,
+        isOnline: true,
+      )),
+    );
+
+    // 비활성 서버
+    final disabledServer = Node(
+      id: 'disabled_server',
+      name: 'Maintenance Server',
+      children: [disabledAccount1, disabledAccount2],
+      data: TreeNodeState.disabled(
+          metadata: ServerInfo(
+        host: '10.0.1.200',
+        port: 80,
+        status: 'maintenance',
+        cpuUsage: 0.0,
+        isOnline: false,
+      )),
+    );
+
+    // 부분적으로 비활성화된 서버 (일부 계정만 비활성)
+    final partiallyDisabledServer = Node(
+      id: 'partial_server',
+      name: 'Development Server',
+      children: [activeAccount1, disabledAccount3],
+      data: TreeNodeState.withMetadata(ServerInfo(
+        host: '10.0.1.300',
+        port: 8080,
+        status: 'running',
+        cpuUsage: 15.8,
+        isOnline: true,
+      )),
+    );
+
+    // 활성 부서 폴더
+    final activeDept = Folder.create(
+      id: 'active_dept',
+      name: 'Active Department',
+      children: [activeServer],
+      metadata: {
+        'department': 'Engineering',
+        'status': 'active',
+        'employee_count': 25,
+      },
+    );
+
+    // 비활성 부서 폴더
+    final disabledDept = Folder.create(
+      id: 'disabled_dept',
+      name: 'Disabled Department',
+      children: [disabledServer],
+      metadata: {
+        'department': 'Legacy Systems',
+        'status': 'discontinued',
+        'employee_count': 0,
+      },
+    );
+
+    // 혼합 상태 부서 폴더
+    final mixedDept = Folder.create(
+      id: 'mixed_dept',
+      name: 'Mixed Status Department',
+      children: [partiallyDisabledServer],
+      metadata: {
+        'department': 'Research & Development',
+        'status': 'restructuring',
+        'employee_count': 12,
+      },
+    );
+
+    return [activeDept, disabledDept, mixedDept];
+  }
+
+  /// 메타데이터 사용 예제 시연
+  static void demonstrateImprovedMetadataUsage(List<TreeNode> nodes) {
+    print('=== 개선된 메타데이터 사용 예제 ===');
+
+    void printNodeInfo(TreeNode node, int depth) {
       final indent = '  ' * depth;
+      final state = node.data;
+
       print('$indent${node.name} (${node.runtimeType})');
+      print('$indent  └─ Enabled: ${state.isEnabled}');
+      print('$indent  └─ Expanded: ${state.isExpanded}');
+      print('$indent  └─ Selected: ${state.isSelected}');
+      print('$indent  └─ Visible: ${state.isVisible}');
 
-      if (node is Account || node is Node) {
-        final state = node.data;
+      if (state.hasMetadata) {
         final metadata = state.metadata;
+        print('$indent  └─ Metadata: ${metadata.runtimeType}');
 
-        if (metadata != null) {
-          print('$indent  └─ 메타데이터: ${metadata.runtimeType}');
-
-          // 타입별로 다른 접근 방법 시연
-          if (metadata is String) {
-            print('$indent     String: "$metadata"');
-          } else if (metadata is UserInfo) {
-            print('$indent     UserInfo: ${metadata.name} (${metadata.role})');
-          } else if (metadata is ServerInfo) {
-            print(
-                '$indent     ServerInfo: ${metadata.host}:${metadata.port} (${metadata.status})');
-          } else if (metadata is Map) {
-            print('$indent     Map: ${metadata.keys.join(', ')}');
-          } else if (metadata is int) {
-            print('$indent     Int: $metadata');
-          }
-
-          // 헬퍼 메서드 사용 예제
-          final asString = state.metadataAsString;
-          final asUserInfo = state.getMetadataAs<UserInfo>();
-          final asServerInfo = state.getMetadataAs<ServerInfo>();
-
-          if (asUserInfo != null) {
-            print(
-                '$indent     └─ 안전한 접근: ${asUserInfo.name} (${asUserInfo.role})');
-          } else if (asServerInfo != null) {
-            print(
-                '$indent     └─ 안전한 접근: ${asServerInfo.host} (CPU: ${asServerInfo.cpuUsage}%)');
-          } else if (asString != null) {
-            print('$indent     └─ 문자열로: "$asString"');
-          }
-        } else {
-          print('$indent  └─ 메타데이터: null');
+        if (metadata is UserInfo) {
+          print(
+              '$indent     UserInfo: ${metadata.name} (${metadata.role}, active: ${metadata.isActive})');
+        } else if (metadata is ServerInfo) {
+          print(
+              '$indent     ServerInfo: ${metadata.host}:${metadata.port} (${metadata.status}, online: ${metadata.isOnline})');
+        } else if (metadata is Map) {
+          print('$indent     Map keys: ${metadata.keys.join(', ')}');
+        } else if (metadata is String) {
+          print('$indent     String: "$metadata"');
         }
+
+        // 타입 안전한 접근 예제
+        final userInfo = state.getMetadataAs<UserInfo>();
+        final serverInfo = state.getMetadataAs<ServerInfo>();
+
+        if (userInfo != null) {
+          print(
+              '$indent     └─ Safe access: User ${userInfo.name} is ${userInfo.isActive ? 'active' : 'inactive'}');
+        } else if (serverInfo != null) {
+          print(
+              '$indent     └─ Safe access: Server ${serverInfo.host} is ${serverInfo.isOnline ? 'online' : 'offline'}');
+        }
+      } else {
+        print('$indent  └─ Metadata: null');
       }
 
       // 자식 노드들도 순회
       for (final child in node.children) {
         if (child is TreeNode) {
-          printNodeMetadata(child, depth + 1);
+          printNodeInfo(child, depth + 1);
         }
       }
     }
 
     for (final node in nodes) {
-      printNodeMetadata(node, 0);
+      printNodeInfo(node, 0);
+      print(''); // 빈 줄로 구분
     }
+  }
+
+  /// 노드 상태 통계 출력
+  static void printNodeStatistics(List<TreeNode> nodes) {
+    int totalNodes = 0;
+    int enabledNodes = 0;
+    int disabledNodes = 0;
+    int expandedNodes = 0;
+    int selectedNodes = 0;
+    int hiddenNodes = 0;
+
+    void countNodes(List<TreeNode> nodeList) {
+      for (final node in nodeList) {
+        totalNodes++;
+
+        if (node.data.isEnabled) enabledNodes++;
+        if (!node.data.isEnabled) disabledNodes++;
+        if (node.data.isExpanded) expandedNodes++;
+        if (node.data.isSelected) selectedNodes++;
+        if (!node.data.isVisible) hiddenNodes++;
+
+        if (node.children.isNotEmpty) {
+          countNodes(node.children.cast<TreeNode>());
+        }
+      }
+    }
+
+    countNodes(nodes);
+
+    print('=== 노드 상태 통계 ===');
+    print('총 노드 수: $totalNodes');
+    print('활성 노드: $enabledNodes');
+    print('비활성 노드: $disabledNodes');
+    print('확장된 노드: $expandedNodes');
+    print('선택된 노드: $selectedNodes');
+    print('숨겨진 노드: $hiddenNodes');
   }
 }

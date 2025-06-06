@@ -20,22 +20,33 @@ class TreeView extends StatefulWidget {
   final List<TreeNode> rootNodes;
   final Function(Account)? onAccountDoubleClick;
   final Function(Account)? onAccountRightClick;
+  final Function(TreeNode)? onNodeTap;
+  final Function(TreeNode)? onNodeDoubleClick;
+  final Function(TreeNode)? onNodeRightClick;
   final TreeViewThemeData? theme;
+  final String? selectedNodeId;
+  final Function(String?)? onSelectionChanged;
 
   const TreeView({
     super.key,
     required this.rootNodes,
     this.onAccountDoubleClick,
     this.onAccountRightClick,
+    this.onNodeTap,
+    this.onNodeDoubleClick,
+    this.onNodeRightClick,
     this.theme,
+    this.selectedNodeId,
+    this.onSelectionChanged,
   });
 
   @override
   State<TreeView> createState() => _TreeViewState();
 }
 
-class _TreeViewState extends State<TreeView> {
+class _TreeViewState extends State<TreeView> with TickerProviderStateMixin {
   final Map<String, bool> _expandedNodes = {};
+  final Map<String, AnimationController> _expansionControllers = {};
   late TreeViewWidthCalculator _widthCalculator;
   bool _isHovered = false;
 
@@ -61,12 +72,32 @@ class _TreeViewState extends State<TreeView> {
     }
   }
 
+  @override
+  void dispose() {
+    // 모든 애니메이션 컨트롤러 dispose
+    for (var controller in _expansionControllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
   void _initializeExpandedStates(List<TreeNode> nodes) {
     for (var node in nodes) {
       if (node is Folder || node is Node) {
         // 노드의 초기 확장 상태를 TreeNodeState에서 가져와서 적용
-        // 하지만 _expandedNodes가 이미 설정되어 있다면 그것을 우선시
         _expandedNodes[node.id] ??= node.data.isExpanded;
+
+        // 애니메이션 컨트롤러 생성
+        if (!_expansionControllers.containsKey(node.id)) {
+          final controller = AnimationController(
+            duration: _currentTheme.expansionAnimationDuration,
+            vsync: this,
+          );
+          if (_expandedNodes[node.id] ?? false) {
+            controller.value = 1.0;
+          }
+          _expansionControllers[node.id] = controller;
+        }
 
         if (node.children.isNotEmpty) {
           _initializeExpandedStates(node.children.cast<TreeNode>());
@@ -77,8 +108,25 @@ class _TreeViewState extends State<TreeView> {
 
   void _toggleExpansion(String nodeId) {
     setState(() {
-      _expandedNodes[nodeId] = !(_expandedNodes[nodeId] ?? false);
+      final isExpanded = _expandedNodes[nodeId] ?? false;
+      _expandedNodes[nodeId] = !isExpanded;
+
+      final controller = _expansionControllers[nodeId];
+      if (controller != null) {
+        if (!isExpanded) {
+          controller.forward();
+        } else {
+          controller.reverse();
+        }
+      }
     });
+  }
+
+  void _handleNodeSelection(TreeNode node) {
+    if (node.data.isEnabled) {
+      widget.onSelectionChanged?.call(node.id);
+      widget.onNodeTap?.call(node);
+    }
   }
 
   /// 플랫화된 노드 리스트 생성 (현재 표시되는 노드들만)
@@ -87,12 +135,14 @@ class _TreeViewState extends State<TreeView> {
 
     void traverse(List<TreeNode> nodes, int depth) {
       for (var node in nodes) {
-        flattened.add(_FlattenedNode(node: node, depth: depth));
+        if (node.data.isVisible) {
+          flattened.add(_FlattenedNode(node: node, depth: depth));
 
-        if ((node is Folder || node is Node) &&
-            node.children.isNotEmpty &&
-            (_expandedNodes[node.id] ?? false)) {
-          traverse(node.children.cast<TreeNode>(), depth + 1);
+          if ((node is Folder || node is Node) &&
+              node.children.isNotEmpty &&
+              (_expandedNodes[node.id] ?? false)) {
+            traverse(node.children.cast<TreeNode>(), depth + 1);
+          }
         }
       }
     }
@@ -112,14 +162,7 @@ class _TreeViewState extends State<TreeView> {
   /// 전체 콘텐츠 높이 계산
   double _calculateContentHeight() {
     final flattenedNodes = _getFlattenedNodes();
-    return flattenedNodes.length * _getNodeHeight();
-  }
-
-  /// 개별 노드의 높이
-  double _getNodeHeight() {
-    return _currentTheme.nodeVerticalPadding * 2 +
-        _currentTheme.nodeSpacing * 2 +
-        _currentTheme.iconSize;
+    return flattenedNodes.length * _currentTheme.nodeMinHeight;
   }
 
   @override
@@ -146,7 +189,7 @@ class _TreeViewState extends State<TreeView> {
           decoration: BoxDecoration(
             color: theme.backgroundColor,
             border: Border.all(
-              color: theme.borderColor ?? Colors.grey.shade300,
+              color: theme.getEffectiveBorderColor(context),
               width: theme.borderWidth,
             ),
             borderRadius: theme.borderRadius,
@@ -163,7 +206,6 @@ class _TreeViewState extends State<TreeView> {
                 onEnter: (_) => setState(() => _isHovered = true),
                 onExit: (_) => setState(() => _isHovered = false),
                 child: ScrollConfiguration(
-                  // Flutter 기본 스크롤바 숨기기
                   behavior: ScrollConfiguration.of(context).copyWith(
                     scrollbars: false,
                   ),
@@ -190,7 +232,7 @@ class _TreeViewState extends State<TreeView> {
                         ),
                       ),
 
-                      // 세로 스크롤바 (우측 오버레이)
+                      // 세로 스크롤바
                       if (theme.showVerticalScrollbar && needsVerticalScroll)
                         _buildVerticalScrollbar(
                           verticalScrollbarController,
@@ -200,7 +242,7 @@ class _TreeViewState extends State<TreeView> {
                           theme,
                         ),
 
-                      // 가로 스크롤바 (하단 오버레이)
+                      // 가로 스크롤바
                       if (theme.showHorizontalScrollbar &&
                           needsHorizontalScroll)
                         _buildHorizontalScrollbar(
@@ -220,7 +262,7 @@ class _TreeViewState extends State<TreeView> {
     );
   }
 
-  /// 세로 스크롤바 위젯 생성
+  /// 개선된 세로 스크롤바
   Widget _buildVerticalScrollbar(
     ScrollController controller,
     double availableHeight,
@@ -233,8 +275,10 @@ class _TreeViewState extends State<TreeView> {
       right: 0,
       bottom: needsHorizontalScroll ? theme.scrollbarWidth : 0,
       child: AnimatedOpacity(
-        opacity: theme.scrollbarHoverOnly ? (_isHovered ? 0.7 : 0.0) : 0.7,
-        duration: const Duration(milliseconds: 200),
+        opacity: theme.scrollbarHoverOnly
+            ? (_isHovered ? theme.scrollbarHoverOpacity : 0.0)
+            : theme.scrollbarOpacity,
+        duration: theme.hoverAnimationDuration,
         child: Container(
           width: theme.scrollbarWidth,
           decoration: BoxDecoration(
@@ -269,7 +313,7 @@ class _TreeViewState extends State<TreeView> {
     );
   }
 
-  /// 가로 스크롤바 위젯 생성
+  /// 개선된 가로 스크롤바
   Widget _buildHorizontalScrollbar(
     ScrollController controller,
     double availableWidth,
@@ -281,8 +325,10 @@ class _TreeViewState extends State<TreeView> {
       right: 0,
       bottom: 0,
       child: AnimatedOpacity(
-        opacity: theme.scrollbarHoverOnly ? (_isHovered ? 0.7 : 0.0) : 0.7,
-        duration: const Duration(milliseconds: 200),
+        opacity: theme.scrollbarHoverOnly
+            ? (_isHovered ? theme.scrollbarHoverOpacity : 0.0)
+            : theme.scrollbarOpacity,
+        duration: theme.hoverAnimationDuration,
         child: Container(
           height: theme.scrollbarWidth,
           decoration: BoxDecoration(
@@ -329,8 +375,39 @@ class _TreeViewState extends State<TreeView> {
     return const SizedBox.shrink();
   }
 
-  /// 확장 가능한 아이템 레이아웃
+  /// 노드 상태에 따른 색상 계산
+  Color? _getNodeBackgroundColor(TreeNode node) {
+    final theme = _currentTheme;
+
+    if (!node.data.isEnabled) {
+      return theme.getEffectiveNodeDisabledColor(context);
+    }
+
+    if (widget.selectedNodeId == node.id) {
+      return theme.getEffectiveNodeSelectedColor(context);
+    }
+
+    return null;
+  }
+
+  /// 노드 상태에 따른 텍스트 스타일 계산
+  TextStyle _getNodeTextStyle(TreeNode node, TextStyle baseStyle) {
+    final theme = _currentTheme;
+
+    if (!node.data.isEnabled) {
+      return theme.disabledTextStyle;
+    }
+
+    if (widget.selectedNodeId == node.id) {
+      return theme.selectedTextStyle;
+    }
+
+    return baseStyle;
+  }
+
+  /// 확장 가능한 아이템 레이아웃 (완전히 테마 적용)
   Widget _buildExpandableItemLayout({
+    required TreeNode node,
     required int depth,
     required Widget arrowIcon,
     required Widget mainIcon,
@@ -340,37 +417,61 @@ class _TreeViewState extends State<TreeView> {
   }) {
     final theme = _currentTheme;
     final indent = theme.indentSize * depth;
+    final isSelected = widget.selectedNodeId == node.id;
+    final isEnabled = node.data.isEnabled;
 
     return Padding(
       padding: EdgeInsets.only(left: indent),
       child: Container(
+        constraints: BoxConstraints(minHeight: theme.nodeMinHeight),
         padding: EdgeInsets.symmetric(
           horizontal: theme.nodeHorizontalPadding,
           vertical: theme.nodeVerticalPadding,
+        ),
+        decoration: BoxDecoration(
+          color: _getNodeBackgroundColor(node),
+          borderRadius: theme.nodeBorderRadius,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             SizedBox(
-              width: 20.0, // 화살표 아이콘 너비 고정
+              width: 20.0,
               child: arrowIcon,
             ),
-            CustomInkwell(
-              onTap: onTap,
-              borderRadius: theme.nodeBorderRadius,
-              hoverColor: theme.nodeHoverColor,
-              child: Padding(
-                padding: EdgeInsets.symmetric(
-                  vertical: theme.nodeSpacing,
-                  horizontal: 8.0, // 콘텐츠 패딩 고정
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    mainIcon,
-                    SizedBox(width: theme.iconSpacing),
-                    Text(text, style: textStyle),
-                  ],
+            Opacity(
+              opacity: isEnabled ? 1.0 : 0.5,
+              child: CustomInkwell(
+                onTap: isEnabled
+                    ? () {
+                        _handleNodeSelection(node);
+                        onTap?.call();
+                      }
+                    : null,
+                borderRadius: theme.nodeBorderRadius,
+                hoverColor: theme.enableHoverEffects
+                    ? theme.getEffectiveNodeHoverColor(context)
+                    : null,
+                splashColor: theme.enableRippleEffects
+                    ? theme.getEffectiveRippleColor(context)
+                    : null,
+                child: AnimatedContainer(
+                  duration: theme.hoverAnimationDuration,
+                  padding: EdgeInsets.symmetric(
+                    vertical: theme.nodeSpacing,
+                    horizontal: 8.0,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      mainIcon,
+                      SizedBox(width: theme.iconSpacing),
+                      Text(
+                        text,
+                        style: _getNodeTextStyle(node, textStyle),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -380,8 +481,9 @@ class _TreeViewState extends State<TreeView> {
     );
   }
 
-  /// Account 아이템 레이아웃
+  /// Account 아이템 레이아웃 (완전히 테마 적용)
   Widget _buildAccountItemLayout({
+    required TreeNode node,
     required int depth,
     required Widget mainIcon,
     required String text,
@@ -391,35 +493,68 @@ class _TreeViewState extends State<TreeView> {
   }) {
     final theme = _currentTheme;
     final indent = theme.indentSize * depth;
+    final isEnabled = node.data.isEnabled;
 
     return Padding(
       padding: EdgeInsets.only(left: indent),
       child: Container(
+        constraints: BoxConstraints(minHeight: theme.nodeMinHeight),
         padding: EdgeInsets.symmetric(
           horizontal: theme.nodeHorizontalPadding,
           vertical: theme.nodeVerticalPadding,
         ),
+        decoration: BoxDecoration(
+          color: _getNodeBackgroundColor(node),
+          borderRadius: theme.nodeBorderRadius,
+        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(width: 20.0), // 화살표 아이콘 공간
-            CustomInkwell(
-              onDoubleTap: onDoubleTap,
-              onRightClick: onRightClick,
-              borderRadius: theme.nodeBorderRadius,
-              hoverColor: theme.nodeHoverColor,
-              child: Padding(
-                padding: EdgeInsets.symmetric(
-                  vertical: theme.nodeSpacing,
-                  horizontal: 8.0, // 콘텐츠 패딩 고정
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    mainIcon,
-                    SizedBox(width: theme.iconSpacing),
-                    Text(text, style: textStyle),
-                  ],
+            const SizedBox(width: 20.0),
+            Opacity(
+              opacity: isEnabled ? 1.0 : 0.5,
+              child: CustomInkwell(
+                onDoubleTap: isEnabled
+                    ? () {
+                        if (node is Account) {
+                          widget.onAccountDoubleClick?.call(node);
+                        }
+                        onDoubleTap?.call();
+                      }
+                    : null,
+                onRightClick: isEnabled
+                    ? () {
+                        if (node is Account) {
+                          widget.onAccountRightClick?.call(node);
+                        }
+                        onRightClick?.call();
+                      }
+                    : null,
+                onTap: isEnabled ? () => _handleNodeSelection(node) : null,
+                borderRadius: theme.nodeBorderRadius,
+                hoverColor: theme.enableHoverEffects
+                    ? theme.getEffectiveNodeHoverColor(context)
+                    : null,
+                splashColor: theme.enableRippleEffects
+                    ? theme.getEffectiveRippleColor(context)
+                    : null,
+                child: AnimatedContainer(
+                  duration: theme.hoverAnimationDuration,
+                  padding: EdgeInsets.symmetric(
+                    vertical: theme.nodeSpacing,
+                    horizontal: 8.0,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      mainIcon,
+                      SizedBox(width: theme.iconSpacing),
+                      Text(
+                        text,
+                        style: _getNodeTextStyle(node, textStyle),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -429,67 +564,108 @@ class _TreeViewState extends State<TreeView> {
     );
   }
 
-  /// 폴더 노드 빌드
+  /// 폴더 노드 빌드 (완전히 테마 적용)
   Widget _buildFolderNode(Folder folder, int depth) {
     final theme = _currentTheme;
     final isExpanded = _expandedNodes[folder.id] ?? false;
+    final controller = _expansionControllers[folder.id];
 
     return _buildExpandableItemLayout(
+      node: folder,
       depth: depth,
-      arrowIcon: RotationTransition(
-        turns: AlwaysStoppedAnimation(isExpanded ? 0.25 : 0.0),
-        child: Icon(
-          Icons.keyboard_arrow_right,
-          size: 16,
-          color: theme.arrowColor,
-        ),
-      ),
+      arrowIcon: controller != null
+          ? RotationTransition(
+              turns: Tween(begin: 0.0, end: 0.25).animate(
+                CurvedAnimation(
+                  parent: controller,
+                  curve: theme.expansionCurve,
+                ),
+              ),
+              child: Icon(
+                Icons.keyboard_arrow_right,
+                size: 16,
+                color: folder.data.isEnabled
+                    ? theme.arrowColor
+                    : theme.disabledIconColor,
+              ),
+            )
+          : Icon(
+              Icons.keyboard_arrow_right,
+              size: 16,
+              color: folder.data.isEnabled
+                  ? theme.arrowColor
+                  : theme.disabledIconColor,
+            ),
       mainIcon: Icon(
         isExpanded ? Icons.folder_open : Icons.folder,
-        color: theme.folderColor,
+        color: folder.data.isEnabled
+            ? (isExpanded ? theme.folderExpandedColor : theme.folderColor)
+            : theme.disabledIconColor,
         size: theme.iconSize,
       ),
       text: folder.name,
       textStyle: theme.folderTextStyle,
-      onTap: () => _toggleExpansion(folder.id),
+      onTap: folder.data.isEnabled ? () => _toggleExpansion(folder.id) : null,
     );
   }
 
-  /// 노드 아이템 빌드
+  /// 노드 아이템 빌드 (완전히 테마 적용)
   Widget _buildNodeItem(Node node, int depth) {
     final theme = _currentTheme;
     final isExpanded = _expandedNodes[node.id] ?? false;
+    final controller = _expansionControllers[node.id];
 
     return _buildExpandableItemLayout(
+      node: node,
       depth: depth,
-      arrowIcon: RotationTransition(
-        turns: AlwaysStoppedAnimation(isExpanded ? 0.25 : 0.0),
-        child: Icon(
-          Icons.keyboard_arrow_right,
-          size: 16,
-          color: theme.arrowColor,
-        ),
-      ),
+      arrowIcon: controller != null
+          ? RotationTransition(
+              turns: Tween(begin: 0.0, end: 0.25).animate(
+                CurvedAnimation(
+                  parent: controller,
+                  curve: theme.expansionCurve,
+                ),
+              ),
+              child: Icon(
+                Icons.keyboard_arrow_right,
+                size: 16,
+                color: node.data.isEnabled
+                    ? theme.arrowColor
+                    : theme.disabledIconColor,
+              ),
+            )
+          : Icon(
+              Icons.keyboard_arrow_right,
+              size: 16,
+              color: node.data.isEnabled
+                  ? theme.arrowColor
+                  : theme.disabledIconColor,
+            ),
       mainIcon: Icon(
         isExpanded ? Icons.dns : Icons.storage,
-        color: theme.nodeColor,
+        color: node.data.isEnabled
+            ? (isExpanded ? theme.nodeExpandedColor : theme.nodeColor)
+            : theme.disabledIconColor,
         size: theme.iconSize,
       ),
       text: node.name,
       textStyle: theme.nodeTextStyle,
-      onTap: () => _toggleExpansion(node.id),
+      onTap: node.data.isEnabled ? () => _toggleExpansion(node.id) : null,
     );
   }
 
-  /// Account 아이템 빌드
+  /// Account 아이템 빌드 (완전히 테마 적용)
   Widget _buildAccountItem(Account account, int depth) {
     final theme = _currentTheme;
 
     return _buildAccountItemLayout(
+      node: account,
       depth: depth,
       mainIcon: Icon(
         Icons.account_circle,
-        color: theme.accountColor,
+        color: account.data.isEnabled
+            ? theme.accountColor
+            : theme.disabledIconColor,
         size: theme.iconSize,
       ),
       text: account.name,

@@ -41,10 +41,9 @@ TODO: Add your license here.
 ```
 ## example/lib/main.dart
 ```dart
+import 'package:example/mock_data.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_basic_folderview/flutter_basic_folderview.dart';
-
-import 'mock_data.dart';
 
 void main() {
   runApp(const MyApp());
@@ -61,6 +60,7 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         useMaterial3: true,
       ),
+      darkTheme: ThemeData.dark(useMaterial3: true),
       home: const TreeViewPage(),
     );
   }
@@ -75,16 +75,58 @@ class TreeViewPage extends StatefulWidget {
 
 class _TreeViewPageState extends State<TreeViewPage> {
   late List<TreeNode> rootNodes;
+  String? selectedNodeId;
+  String currentTheme = 'default';
+  String currentDataSet = 'simple';
+
+  // 다양한 테마들
+  final Map<String, TreeViewThemeData> themes = {
+    'default': TreeViewThemeData.defaultTheme(),
+    'dark': TreeViewThemeData.darkTheme(),
+    'compact': TreeViewThemeData.compactTheme(),
+    'custom_blue': TreeViewThemeData.defaultTheme().copyWith(
+      folderColor: Colors.blue.shade600,
+      folderExpandedColor: Colors.blue.shade800,
+      nodeColor: Colors.cyan.shade600,
+      nodeExpandedColor: Colors.cyan.shade800,
+      accountColor: Colors.teal.shade600,
+      backgroundColor: Colors.blue.shade50,
+      borderColor: Colors.blue.shade300,
+      nodeHoverColor: Colors.blue.shade100,
+      nodeSelectedColor: Colors.blue.shade200,
+    ),
+    'custom_green': TreeViewThemeData.defaultTheme().copyWith(
+      folderColor: Colors.green.shade600,
+      folderExpandedColor: Colors.green.shade800,
+      nodeColor: Colors.lightGreen.shade600,
+      nodeExpandedColor: Colors.lightGreen.shade800,
+      accountColor: Colors.teal.shade600,
+      backgroundColor: Colors.green.shade50,
+      borderColor: Colors.green.shade300,
+      nodeHoverColor: Colors.green.shade100,
+      nodeSelectedColor: Colors.green.shade200,
+      nodeBorderRadius: const BorderRadius.all(Radius.circular(12.0)),
+      iconSize: 24.0,
+    ),
+    'minimal': TreeViewThemeData.defaultTheme().copyWith(
+      showVerticalScrollbar: false,
+      showHorizontalScrollbar: false,
+      backgroundColor: Colors.transparent,
+      borderColor: Colors.transparent,
+      borderWidth: 0.0,
+      nodeHoverColor: Colors.grey.shade100,
+      nodeSelectedColor: Colors.grey.shade200,
+      enableRippleEffects: false,
+    ),
+  };
 
   @override
   void initState() {
     super.initState();
-    // 테스트 데이터 생성
-    rootNodes = MockData.createTestData();
+    rootNodes = ImprovedMockData.createSimpleTestData();
   }
 
   void _onAccountDoubleClick(Account account) {
-    // 새로운 dynamic metadata 기능 시연
     final metadata = account.data.metadata;
     String metadataInfo = 'No metadata';
 
@@ -107,6 +149,7 @@ class _TreeViewPageState extends State<TreeViewPage> {
         content: Text(
           'Account: ${account.name}\n'
           'ID: ${account.id}\n'
+          'Enabled: ${account.data.isEnabled}\n'
           'Metadata: $metadataInfo',
         ),
         actions: [
@@ -124,7 +167,11 @@ class _TreeViewPageState extends State<TreeViewPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Account Right Clicked'),
-        content: Text('Account: ${account.name}\nID: ${account.id}'),
+        content: Text(
+          'Account: ${account.name}\n'
+          'ID: ${account.id}\n'
+          'Enabled: ${account.data.isEnabled}',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -135,60 +182,235 @@ class _TreeViewPageState extends State<TreeViewPage> {
     );
   }
 
-  void _switchToComplexData() {
+  void _onNodeTap(TreeNode node) {
+    print('Node tapped: ${node.name} (${node.runtimeType})');
+  }
+
+  void _onSelectionChanged(String? nodeId) {
     setState(() {
-      rootNodes = MockData.createComplexTestData();
+      selectedNodeId = nodeId;
     });
   }
 
-  void _switchToSimpleData() {
+  void _changeTheme(String themeName) {
     setState(() {
-      rootNodes = MockData.createTestData();
+      currentTheme = themeName;
+    });
+  }
+
+  void _changeDataSet(String dataSet) {
+    setState(() {
+      currentDataSet = dataSet;
+      switch (dataSet) {
+        case 'simple':
+          rootNodes = ImprovedMockData.createSimpleTestData();
+          break;
+        case 'complex':
+          rootNodes = ImprovedMockData.createComplexTestData();
+          break;
+        case 'mixed_states':
+          rootNodes = ImprovedMockData.createMixedStatesTestData();
+          break;
+        case 'disabled_demo':
+          rootNodes = ImprovedMockData.createDisabledNodesDemo();
+          break;
+      }
+      selectedNodeId = null; // 데이터 변경 시 선택 초기화
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Flutter Basic FolderView Demo'),
+        title: const Text('TreeView Theme Demo'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
-          // 데이터 변경 버튼
+          // 테마 선택 버튼
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.palette),
+            tooltip: 'Change Theme',
+            onSelected: _changeTheme,
+            itemBuilder: (BuildContext context) => themes.keys.map((theme) {
+              return PopupMenuItem<String>(
+                value: theme,
+                child: Row(
+                  children: [
+                    if (currentTheme == theme)
+                      const Icon(Icons.check, size: 16),
+                    if (currentTheme == theme) const SizedBox(width: 8),
+                    Text(theme.replaceAll('_', ' ').toUpperCase()),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+
+          // 데이터 세트 선택 버튼
           PopupMenuButton<String>(
             icon: const Icon(Icons.data_object),
             tooltip: 'Change Data',
-            onSelected: (String value) {
-              switch (value) {
-                case 'simple':
-                  _switchToSimpleData();
-                  break;
-                case 'complex':
-                  _switchToComplexData();
-                  break;
-              }
-            },
-            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-              const PopupMenuItem<String>(
+            onSelected: _changeDataSet,
+            itemBuilder: (BuildContext context) => [
+              PopupMenuItem<String>(
                 value: 'simple',
-                child: Text('Simple Test Data'),
+                child: Row(
+                  children: [
+                    if (currentDataSet == 'simple')
+                      const Icon(Icons.check, size: 16),
+                    if (currentDataSet == 'simple') const SizedBox(width: 8),
+                    const Text('Simple Data'),
+                  ],
+                ),
               ),
-              const PopupMenuItem<String>(
+              PopupMenuItem<String>(
                 value: 'complex',
-                child: Text('Complex Test Data'),
+                child: Row(
+                  children: [
+                    if (currentDataSet == 'complex')
+                      const Icon(Icons.check, size: 16),
+                    if (currentDataSet == 'complex') const SizedBox(width: 8),
+                    const Text('Complex Data'),
+                  ],
+                ),
+              ),
+              PopupMenuItem<String>(
+                value: 'mixed_states',
+                child: Row(
+                  children: [
+                    if (currentDataSet == 'mixed_states')
+                      const Icon(Icons.check, size: 16),
+                    if (currentDataSet == 'mixed_states')
+                      const SizedBox(width: 8),
+                    const Text('Mixed States'),
+                  ],
+                ),
+              ),
+              PopupMenuItem<String>(
+                value: 'disabled_demo',
+                child: Row(
+                  children: [
+                    if (currentDataSet == 'disabled_demo')
+                      const Icon(Icons.check, size: 16),
+                    if (currentDataSet == 'disabled_demo')
+                      const SizedBox(width: 8),
+                    const Text('Disabled Demo'),
+                  ],
+                ),
               ),
             ],
           ),
         ],
       ),
-      body: Container(
-        padding: const EdgeInsets.all(16.0),
-        child: TreeView(
-          rootNodes: rootNodes,
-          onAccountDoubleClick: _onAccountDoubleClick,
-          onAccountRightClick: _onAccountRightClick,
-          theme: TreeViewThemeData.defaultTheme(),
+      body: Column(
+        children: [
+          // 현재 상태 표시
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16.0),
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Current Settings',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Text(
+                        'Theme: ${currentTheme.replaceAll('_', ' ').toUpperCase()}'),
+                    const SizedBox(width: 24),
+                    Text(
+                        'Data: ${currentDataSet.replaceAll('_', ' ').toUpperCase()}'),
+                    const SizedBox(width: 24),
+                    if (selectedNodeId != null)
+                      Text('Selected: $selectedNodeId')
+                    else
+                      const Text('Selected: None'),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // TreeView
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.all(16.0),
+              child: TreeView(
+                rootNodes: rootNodes,
+                onAccountDoubleClick: _onAccountDoubleClick,
+                onAccountRightClick: _onAccountRightClick,
+                onNodeTap: _onNodeTap,
+                onSelectionChanged: _onSelectionChanged,
+                selectedNodeId: selectedNodeId,
+                theme: themes[currentTheme],
+              ),
+            ),
+          ),
+        ],
+      ),
+
+      // 정보 패널
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showInfoDialog(),
+        tooltip: 'Show Info',
+        child: const Icon(Icons.info),
+      ),
+    );
+  }
+
+  void _showInfoDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('TreeView Theme Demo'),
+        content: const SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Available Themes:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              Text('• Default - Standard theme'),
+              Text('• Dark - Dark mode theme'),
+              Text('• Compact - Smaller spacing'),
+              Text('• Custom Blue - Blue color scheme'),
+              Text('• Custom Green - Green color scheme'),
+              Text('• Minimal - No scrollbars, no borders'),
+              SizedBox(height: 16),
+              Text(
+                'Available Data Sets:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              Text('• Simple Data - Basic test data'),
+              Text('• Complex Data - Large hierarchical data'),
+              Text('• Mixed States - Various node states'),
+              Text('• Disabled Demo - Shows disabled nodes'),
+              SizedBox(height: 16),
+              Text(
+                'Interactions:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              Text('• Click to select nodes'),
+              Text('• Double-click accounts for details'),
+              Text('• Right-click accounts for context'),
+              Text('• Click folders/nodes to expand/collapse'),
+            ],
+          ),
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
       ),
     );
   }
@@ -199,22 +421,25 @@ class _TreeViewPageState extends State<TreeViewPage> {
 ```dart
 import 'package:flutter_basic_folderview/flutter_basic_folderview.dart';
 
-// 커스텀 메타데이터 클래스 예제들
+// 커스텀 메타데이터 클래스들
 class UserInfo {
   final String name;
   final int id;
   final String role;
   final DateTime lastLogin;
+  final bool isActive;
 
   UserInfo({
     required this.name,
     required this.id,
     required this.role,
     required this.lastLogin,
+    this.isActive = true,
   });
 
   @override
-  String toString() => 'UserInfo(name: $name, id: $id, role: $role)';
+  String toString() =>
+      'UserInfo(name: $name, id: $id, role: $role, active: $isActive)';
 }
 
 class ServerInfo {
@@ -222,24 +447,25 @@ class ServerInfo {
   final int port;
   final String status;
   final double cpuUsage;
+  final bool isOnline;
 
   ServerInfo({
     required this.host,
     required this.port,
     required this.status,
     required this.cpuUsage,
+    this.isOnline = true,
   });
 
   @override
   String toString() =>
-      'ServerInfo(host: $host:$port, status: $status, cpu: $cpuUsage%)';
+      'ServerInfo(host: $host:$port, status: $status, cpu: $cpuUsage%, online: $isOnline)';
 }
 
-class MockData {
-  static List<TreeNode> createTestData() {
-    // 다양한 타입의 메타데이터 사용 예제
-
-    // 1. String 메타데이터를 가진 Account들
+class ImprovedMockData {
+  /// 간단한 테스트 데이터 (enabled/disabled 상태 포함)
+  static List<TreeNode> createSimpleTestData() {
+    // 활성화된 계정들
     final account1 = Account(
       id: 'acc_1',
       name: 'admin@example.com',
@@ -252,48 +478,27 @@ class MockData {
       data: TreeNodeState.withStringMetadata("regular_user_456"),
     );
 
-    // 2. 커스텀 객체 메타데이터를 가진 Account들
+    // 비활성화된 계정
     final account3 = Account(
       id: 'acc_3',
+      name: 'disabled@example.com',
+      data: TreeNodeState.disabled(metadata: "disabled_user_789"),
+    );
+
+    // 커스텀 객체 메타데이터를 가진 계정
+    final account4 = Account(
+      id: 'acc_4',
       name: 'guest@domain.com',
       data: TreeNodeState.withMetadata(UserInfo(
         name: 'Guest User',
         id: 789,
         role: 'guest',
         lastLogin: DateTime.now().subtract(const Duration(days: 1)),
+        isActive: true,
       )),
     );
 
-    final account4 = Account(
-      id: 'acc_4',
-      name: 'test@domain.com',
-      data: TreeNodeState.withMetadata(UserInfo(
-        name: 'Test User',
-        id: 101,
-        role: 'tester',
-        lastLogin: DateTime.now(),
-      )),
-    );
-
-    // 3. Map 메타데이터를 가진 Account들
-    final account5 = Account(
-      id: 'acc_5',
-      name: 'manager@domain.com',
-      data: TreeNodeState.withMapMetadata({
-        'department': 'Engineering',
-        'level': 'Senior',
-        'projects': ['ProjectA', 'ProjectB'],
-        'budget': 50000,
-      }),
-    );
-
-    final account6 = Account(
-      id: 'acc_6',
-      name: 'intern@domain.com',
-      data: TreeNodeState.withIntMetadata(2024), // 입사 연도
-    );
-
-    // 4. 서버 정보를 메타데이터로 가진 Node들
+    // 활성화된 노드
     final node1 = Node(
       id: 'node_1',
       name: 'Web Server',
@@ -303,49 +508,26 @@ class MockData {
         port: 80,
         status: 'running',
         cpuUsage: 25.5,
+        isOnline: true,
       )),
     );
 
+    // 비활성화된 노드
     final node2 = Node(
       id: 'node_2',
-      name: 'Database Server',
+      name: 'Maintenance Server',
       children: [account3],
-      data: TreeNodeState.withMetadata(ServerInfo(
+      data: TreeNodeState.disabled(
+          metadata: ServerInfo(
         host: '192.168.1.20',
         port: 5432,
-        status: 'running',
-        cpuUsage: 78.3,
+        status: 'maintenance',
+        cpuUsage: 0.0,
+        isOnline: false,
       )),
     );
 
-    // 5. 간단한 String 메타데이터를 가진 Node
-    final node3 = Node(
-      id: 'node_3',
-      name: 'API Server',
-      children: [account4],
-      data: TreeNodeState.withStringMetadata("api_v2.1.0"),
-    );
-
-    final node4 = Node(
-      id: 'node_4',
-      name: 'Cache Server',
-      children: [account5, account6],
-      data: TreeNodeState.withMapMetadata({
-        'type': 'Redis',
-        'version': '7.0.5',
-        'memory_usage': '2.3GB',
-        'hit_ratio': 0.95,
-      }),
-    );
-
-    // 6. 폴더들 (새로운 TreeNodeState 기반)
-    final subFolder = Folder.create(
-      id: 'folder_sub',
-      name: 'Development',
-      children: [node3],
-      metadata: 'development_environment', // String 메타데이터
-    );
-
+    // 폴더들
     final folder1 = Folder.create(
       id: 'folder_1',
       name: 'Production',
@@ -354,29 +536,28 @@ class MockData {
         'environment': 'production',
         'region': 'us-east-1',
         'criticality': 'high',
-      }, // Map 메타데이터
+      },
     );
 
     final folder2 = Folder.create(
       id: 'folder_2',
-      name: 'Staging',
-      children: [subFolder],
+      name: 'Development',
+      children: [account4],
       metadata: {
-        'environment': 'staging',
+        'environment': 'development',
         'auto_deploy': true,
         'test_coverage': 85.5,
-      }, // Map 메타데이터
+      },
     );
 
-    return [folder1, folder2, node4];
+    return [folder1, folder2];
   }
 
-  // 더 복잡한 테스트 데이터
+  /// 복잡한 테스트 데이터
   static List<TreeNode> createComplexTestData() {
     final List<TreeNode> nodes = [];
 
-    // 대용량 테스트를 위한 데이터 (다양한 메타데이터 타입 사용)
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 5; i++) {
       final folder = Folder.create(
         id: 'root_folder_$i',
         name: 'Root Folder $i',
@@ -387,36 +568,38 @@ class MockData {
         },
       );
 
-      for (int j = 0; j < 2; j++) {
+      for (int j = 0; j < 3; j++) {
         final subFolder = Folder.create(
           id: 'sub_folder_${i}_$j',
           name: 'Sub Folder $j',
-          metadata: 'sub_level_${i}_$j', // String 메타데이터
+          metadata: 'sub_level_${i}_$j',
         );
 
-        for (int k = 0; k < 3; k++) {
-          // 서버 노드에 ServerInfo 메타데이터
+        for (int k = 0; k < 4; k++) {
           final node = Node(
             id: 'node_${i}_${j}_$k',
             name: 'Server $i-$j-$k',
             data: TreeNodeState.withMetadata(ServerInfo(
               host: '192.168.$i.$k',
               port: 8000 + k,
-              status: k % 2 == 0 ? 'running' : 'stopped',
+              status: k % 3 == 0
+                  ? 'running'
+                  : (k % 3 == 1 ? 'stopped' : 'maintenance'),
               cpuUsage: (k + 1) * 20.0 + i * 5,
+              isOnline: k % 3 != 1,
             )),
           );
 
-          for (int l = 0; l < 2; l++) {
-            // 계정에 UserInfo 메타데이터
+          for (int l = 0; l < 3; l++) {
             final account = Account(
               id: 'acc_${i}_${j}_${k}_$l',
               name: 'user$l@server$k.com',
               data: TreeNodeState.withMetadata(UserInfo(
                 name: 'User $i-$j-$k-$l',
                 id: i * 1000 + j * 100 + k * 10 + l,
-                role: l == 0 ? 'admin' : 'user',
+                role: l == 0 ? 'admin' : (l == 1 ? 'user' : 'guest'),
                 lastLogin: DateTime.now().subtract(Duration(hours: l + k)),
+                isActive: l != 2, // guest 계정은 비활성
               )),
             );
             node.children.add(account);
@@ -434,65 +617,285 @@ class MockData {
     return nodes;
   }
 
-  // 메타데이터 사용 예제를 위한 헬퍼 메서드들
-  static void demonstrateMetadataUsage(List<TreeNode> nodes) {
-    print('=== 메타데이터 사용 예제 ===');
+  /// 다양한 상태가 혼재된 테스트 데이터
+  static List<TreeNode> createMixedStatesTestData() {
+    // 선택된 상태의 계정
+    final selectedAccount = Account(
+      id: 'selected_acc',
+      name: 'selected@example.com',
+      data: TreeNodeState.selected(metadata: "selected_user"),
+    );
 
-    void printNodeMetadata(TreeNode node, int depth) {
+    // 비활성화된 계정
+    final disabledAccount = Account(
+      id: 'disabled_acc',
+      name: 'disabled@example.com',
+      data: TreeNodeState.disabled(metadata: "disabled_user"),
+    );
+
+    // 숨겨진 계정
+    final hiddenAccount = Account(
+      id: 'hidden_acc',
+      name: 'hidden@example.com',
+      data: TreeNodeState.hidden(metadata: "hidden_user"),
+    );
+
+    // 일반 계정
+    final normalAccount = Account(
+      id: 'normal_acc',
+      name: 'normal@example.com',
+      data: TreeNodeState.withStringMetadata("normal_user"),
+    );
+
+    // 다양한 상태의 노드들
+    final activeNode = Node(
+      id: 'active_node',
+      name: 'Active Server',
+      children: [selectedAccount, normalAccount],
+      data: TreeNodeState.withStringMetadata("active_server"),
+    );
+
+    final disabledNode = Node(
+      id: 'disabled_node',
+      name: 'Disabled Server',
+      children: [disabledAccount],
+      data: TreeNodeState.disabled(metadata: "disabled_server"),
+    );
+
+    // 확장된 폴더
+    final expandedFolder = Folder(
+      id: 'expanded_folder',
+      name: 'Expanded Folder',
+      children: [activeNode, disabledNode],
+      data: TreeNodeState(
+        isExpanded: true,
+        metadata: "expanded_folder_data",
+      ),
+    );
+
+    // 축소된 폴더
+    final collapsedFolder = Folder(
+      id: 'collapsed_folder',
+      name: 'Collapsed Folder',
+      children: [hiddenAccount],
+      data: TreeNodeState(
+        isExpanded: false,
+        metadata: "collapsed_folder_data",
+      ),
+    );
+
+    return [expandedFolder, collapsedFolder];
+  }
+
+  /// disabled 노드들의 데모 데이터
+  static List<TreeNode> createDisabledNodesDemo() {
+    // 활성 계정들
+    final activeAccount1 = Account(
+      id: 'active_1',
+      name: 'active.user1@company.com',
+      data: TreeNodeState.withStringMetadata("Active user 1"),
+    );
+
+    final activeAccount2 = Account(
+      id: 'active_2',
+      name: 'active.user2@company.com',
+      data: TreeNodeState.withStringMetadata("Active user 2"),
+    );
+
+    // 비활성 계정들
+    final disabledAccount1 = Account(
+      id: 'disabled_1',
+      name: 'disabled.user1@company.com',
+      data: TreeNodeState.disabled(metadata: "Disabled user 1 - Suspended"),
+    );
+
+    final disabledAccount2 = Account(
+      id: 'disabled_2',
+      name: 'disabled.user2@company.com',
+      data: TreeNodeState.disabled(metadata: "Disabled user 2 - Terminated"),
+    );
+
+    final disabledAccount3 = Account(
+      id: 'disabled_3',
+      name: 'disabled.user3@company.com',
+      data: TreeNodeState.disabled(metadata: "Disabled user 3 - On leave"),
+    );
+
+    // 활성 서버
+    final activeServer = Node(
+      id: 'active_server',
+      name: 'Production Server',
+      children: [activeAccount1, activeAccount2],
+      data: TreeNodeState.withMetadata(ServerInfo(
+        host: '10.0.1.100',
+        port: 80,
+        status: 'running',
+        cpuUsage: 45.2,
+        isOnline: true,
+      )),
+    );
+
+    // 비활성 서버
+    final disabledServer = Node(
+      id: 'disabled_server',
+      name: 'Maintenance Server',
+      children: [disabledAccount1, disabledAccount2],
+      data: TreeNodeState.disabled(
+          metadata: ServerInfo(
+        host: '10.0.1.200',
+        port: 80,
+        status: 'maintenance',
+        cpuUsage: 0.0,
+        isOnline: false,
+      )),
+    );
+
+    // 부분적으로 비활성화된 서버 (일부 계정만 비활성)
+    final partiallyDisabledServer = Node(
+      id: 'partial_server',
+      name: 'Development Server',
+      children: [activeAccount1, disabledAccount3],
+      data: TreeNodeState.withMetadata(ServerInfo(
+        host: '10.0.1.300',
+        port: 8080,
+        status: 'running',
+        cpuUsage: 15.8,
+        isOnline: true,
+      )),
+    );
+
+    // 활성 부서 폴더
+    final activeDept = Folder.create(
+      id: 'active_dept',
+      name: 'Active Department',
+      children: [activeServer],
+      metadata: {
+        'department': 'Engineering',
+        'status': 'active',
+        'employee_count': 25,
+      },
+    );
+
+    // 비활성 부서 폴더
+    final disabledDept = Folder.create(
+      id: 'disabled_dept',
+      name: 'Disabled Department',
+      children: [disabledServer],
+      metadata: {
+        'department': 'Legacy Systems',
+        'status': 'discontinued',
+        'employee_count': 0,
+      },
+    );
+
+    // 혼합 상태 부서 폴더
+    final mixedDept = Folder.create(
+      id: 'mixed_dept',
+      name: 'Mixed Status Department',
+      children: [partiallyDisabledServer],
+      metadata: {
+        'department': 'Research & Development',
+        'status': 'restructuring',
+        'employee_count': 12,
+      },
+    );
+
+    return [activeDept, disabledDept, mixedDept];
+  }
+
+  /// 메타데이터 사용 예제 시연
+  static void demonstrateImprovedMetadataUsage(List<TreeNode> nodes) {
+    print('=== 개선된 메타데이터 사용 예제 ===');
+
+    void printNodeInfo(TreeNode node, int depth) {
       final indent = '  ' * depth;
+      final state = node.data;
+
       print('$indent${node.name} (${node.runtimeType})');
+      print('$indent  └─ Enabled: ${state.isEnabled}');
+      print('$indent  └─ Expanded: ${state.isExpanded}');
+      print('$indent  └─ Selected: ${state.isSelected}');
+      print('$indent  └─ Visible: ${state.isVisible}');
 
-      if (node is Account || node is Node) {
-        final state = node.data;
+      if (state.hasMetadata) {
         final metadata = state.metadata;
+        print('$indent  └─ Metadata: ${metadata.runtimeType}');
 
-        if (metadata != null) {
-          print('$indent  └─ 메타데이터: ${metadata.runtimeType}');
-
-          // 타입별로 다른 접근 방법 시연
-          if (metadata is String) {
-            print('$indent     String: "$metadata"');
-          } else if (metadata is UserInfo) {
-            print('$indent     UserInfo: ${metadata.name} (${metadata.role})');
-          } else if (metadata is ServerInfo) {
-            print(
-                '$indent     ServerInfo: ${metadata.host}:${metadata.port} (${metadata.status})');
-          } else if (metadata is Map) {
-            print('$indent     Map: ${metadata.keys.join(', ')}');
-          } else if (metadata is int) {
-            print('$indent     Int: $metadata');
-          }
-
-          // 헬퍼 메서드 사용 예제
-          final asString = state.metadataAsString;
-          final asUserInfo = state.getMetadataAs<UserInfo>();
-          final asServerInfo = state.getMetadataAs<ServerInfo>();
-
-          if (asUserInfo != null) {
-            print(
-                '$indent     └─ 안전한 접근: ${asUserInfo.name} (${asUserInfo.role})');
-          } else if (asServerInfo != null) {
-            print(
-                '$indent     └─ 안전한 접근: ${asServerInfo.host} (CPU: ${asServerInfo.cpuUsage}%)');
-          } else if (asString != null) {
-            print('$indent     └─ 문자열로: "$asString"');
-          }
-        } else {
-          print('$indent  └─ 메타데이터: null');
+        if (metadata is UserInfo) {
+          print(
+              '$indent     UserInfo: ${metadata.name} (${metadata.role}, active: ${metadata.isActive})');
+        } else if (metadata is ServerInfo) {
+          print(
+              '$indent     ServerInfo: ${metadata.host}:${metadata.port} (${metadata.status}, online: ${metadata.isOnline})');
+        } else if (metadata is Map) {
+          print('$indent     Map keys: ${metadata.keys.join(', ')}');
+        } else if (metadata is String) {
+          print('$indent     String: "$metadata"');
         }
+
+        // 타입 안전한 접근 예제
+        final userInfo = state.getMetadataAs<UserInfo>();
+        final serverInfo = state.getMetadataAs<ServerInfo>();
+
+        if (userInfo != null) {
+          print(
+              '$indent     └─ Safe access: User ${userInfo.name} is ${userInfo.isActive ? 'active' : 'inactive'}');
+        } else if (serverInfo != null) {
+          print(
+              '$indent     └─ Safe access: Server ${serverInfo.host} is ${serverInfo.isOnline ? 'online' : 'offline'}');
+        }
+      } else {
+        print('$indent  └─ Metadata: null');
       }
 
       // 자식 노드들도 순회
       for (final child in node.children) {
         if (child is TreeNode) {
-          printNodeMetadata(child, depth + 1);
+          printNodeInfo(child, depth + 1);
         }
       }
     }
 
     for (final node in nodes) {
-      printNodeMetadata(node, 0);
+      printNodeInfo(node, 0);
+      print(''); // 빈 줄로 구분
     }
+  }
+
+  /// 노드 상태 통계 출력
+  static void printNodeStatistics(List<TreeNode> nodes) {
+    int totalNodes = 0;
+    int enabledNodes = 0;
+    int disabledNodes = 0;
+    int expandedNodes = 0;
+    int selectedNodes = 0;
+    int hiddenNodes = 0;
+
+    void countNodes(List<TreeNode> nodeList) {
+      for (final node in nodeList) {
+        totalNodes++;
+
+        if (node.data.isEnabled) enabledNodes++;
+        if (!node.data.isEnabled) disabledNodes++;
+        if (node.data.isExpanded) expandedNodes++;
+        if (node.data.isSelected) selectedNodes++;
+        if (!node.data.isVisible) hiddenNodes++;
+
+        if (node.children.isNotEmpty) {
+          countNodes(node.children.cast<TreeNode>());
+        }
+      }
+    }
+
+    countNodes(nodes);
+
+    print('=== 노드 상태 통계 ===');
+    print('총 노드 수: $totalNodes');
+    print('활성 노드: $enabledNodes');
+    print('비활성 노드: $disabledNodes');
+    print('확장된 노드: $expandedNodes');
+    print('선택된 노드: $selectedNodes');
+    print('숨겨진 노드: $hiddenNodes');
   }
 }
 
@@ -1029,7 +1432,7 @@ class TreeNodeState {
 ```dart
 import 'package:flutter/material.dart';
 
-/// 간소화된 TreeView 테마 데이터
+/// 완전히 개선된 TreeView 테마 데이터
 class TreeViewThemeData {
   // 스크롤바 설정
   final bool showVerticalScrollbar;
@@ -1038,6 +1441,8 @@ class TreeViewThemeData {
   final Color scrollbarColor;
   final Color scrollbarTrackColor;
   final bool scrollbarHoverOnly;
+  final double scrollbarOpacity;
+  final double scrollbarHoverOpacity;
 
   // 노드 스타일
   final double nodeVerticalPadding;
@@ -1046,12 +1451,18 @@ class TreeViewThemeData {
   final double iconSpacing;
   final BorderRadius nodeBorderRadius;
   final Color? nodeHoverColor;
+  final Color? nodeSelectedColor;
+  final Color? nodeDisabledColor;
+  final double nodeMinHeight;
 
   // 아이콘 색상
   final Color folderColor;
+  final Color folderExpandedColor;
   final Color nodeColor;
+  final Color nodeExpandedColor;
   final Color accountColor;
   final Color arrowColor;
+  final Color disabledIconColor;
 
   // 전체 레이아웃
   final double indentSize;
@@ -1065,6 +1476,18 @@ class TreeViewThemeData {
   final TextStyle folderTextStyle;
   final TextStyle nodeTextStyle;
   final TextStyle accountTextStyle;
+  final TextStyle disabledTextStyle;
+  final TextStyle selectedTextStyle;
+
+  // 애니메이션 설정
+  final Duration expansionAnimationDuration;
+  final Duration hoverAnimationDuration;
+  final Curve expansionCurve;
+
+  // 상호작용 설정
+  final bool enableHoverEffects;
+  final bool enableRippleEffects;
+  final Color? rippleColor;
 
   const TreeViewThemeData({
     // 스크롤바 기본값
@@ -1074,6 +1497,8 @@ class TreeViewThemeData {
     this.scrollbarColor = const Color(0xFF757575),
     this.scrollbarTrackColor = const Color(0x1A000000),
     this.scrollbarHoverOnly = true,
+    this.scrollbarOpacity = 0.7,
+    this.scrollbarHoverOpacity = 0.9,
 
     // 노드 스타일 기본값
     this.nodeVerticalPadding = 4.0,
@@ -1082,12 +1507,18 @@ class TreeViewThemeData {
     this.iconSpacing = 8.0,
     this.nodeBorderRadius = const BorderRadius.all(Radius.circular(4.0)),
     this.nodeHoverColor,
+    this.nodeSelectedColor,
+    this.nodeDisabledColor,
+    this.nodeMinHeight = 32.0,
 
     // 아이콘 색상 기본값
     this.folderColor = const Color(0xFFFFB300),
+    this.folderExpandedColor = const Color(0xFFFFA000),
     this.nodeColor = const Color(0xFF1976D2),
+    this.nodeExpandedColor = const Color(0xFF1565C0),
     this.accountColor = const Color(0xFF388E3C),
     this.arrowColor = const Color(0xFF757575),
+    this.disabledIconColor = const Color(0xFFBDBDBD),
 
     // 레이아웃 기본값
     this.indentSize = 24.0,
@@ -1109,11 +1540,85 @@ class TreeViewThemeData {
     this.accountTextStyle = const TextStyle(
       fontSize: 14,
     ),
+    this.disabledTextStyle = const TextStyle(
+      fontSize: 14,
+      color: Color(0xFF9E9E9E),
+    ),
+    this.selectedTextStyle = const TextStyle(
+      fontSize: 14,
+      fontWeight: FontWeight.w600,
+    ),
+
+    // 애니메이션 설정
+    this.expansionAnimationDuration = const Duration(milliseconds: 200),
+    this.hoverAnimationDuration = const Duration(milliseconds: 150),
+    this.expansionCurve = Curves.easeInOut,
+
+    // 상호작용 설정
+    this.enableHoverEffects = true,
+    this.enableRippleEffects = true,
+    this.rippleColor,
   });
 
   /// 기본 테마 생성
   factory TreeViewThemeData.defaultTheme() {
     return const TreeViewThemeData();
+  }
+
+  /// 다크 테마 생성
+  factory TreeViewThemeData.darkTheme() {
+    return const TreeViewThemeData(
+      backgroundColor: Color(0xFF121212),
+      borderColor: Color(0xFF333333),
+      nodeHoverColor: Color(0xFF2C2C2C),
+      nodeSelectedColor: Color(0xFF1976D2),
+      folderColor: Color(0xFFFFCA28),
+      folderExpandedColor: Color(0xFFFFB300),
+      nodeColor: Color(0xFF64B5F6),
+      nodeExpandedColor: Color(0xFF42A5F5),
+      accountColor: Color(0xFF81C784),
+      arrowColor: Color(0xFFBDBDBD),
+      folderTextStyle: TextStyle(
+        fontWeight: FontWeight.w500,
+        fontSize: 14,
+        color: Colors.white,
+      ),
+      nodeTextStyle: TextStyle(
+        fontWeight: FontWeight.w500,
+        fontSize: 14,
+        color: Colors.white,
+      ),
+      accountTextStyle: TextStyle(
+        fontSize: 14,
+        color: Colors.white,
+      ),
+      scrollbarColor: Color(0xFF757575),
+      scrollbarTrackColor: Color(0x1AFFFFFF),
+    );
+  }
+
+  /// 컴팩트 테마 생성
+  factory TreeViewThemeData.compactTheme() {
+    return const TreeViewThemeData(
+      nodeVerticalPadding: 2.0,
+      nodeHorizontalPadding: 4.0,
+      iconSize: 16.0,
+      iconSpacing: 6.0,
+      indentSize: 20.0,
+      nodeSpacing: 2.0,
+      nodeMinHeight: 24.0,
+      folderTextStyle: TextStyle(
+        fontWeight: FontWeight.w500,
+        fontSize: 12,
+      ),
+      nodeTextStyle: TextStyle(
+        fontWeight: FontWeight.w500,
+        fontSize: 12,
+      ),
+      accountTextStyle: TextStyle(
+        fontSize: 12,
+      ),
+    );
   }
 
   TreeViewThemeData copyWith({
@@ -1123,16 +1628,24 @@ class TreeViewThemeData {
     Color? scrollbarColor,
     Color? scrollbarTrackColor,
     bool? scrollbarHoverOnly,
+    double? scrollbarOpacity,
+    double? scrollbarHoverOpacity,
     double? nodeVerticalPadding,
     double? nodeHorizontalPadding,
     double? iconSize,
     double? iconSpacing,
     BorderRadius? nodeBorderRadius,
     Color? nodeHoverColor,
+    Color? nodeSelectedColor,
+    Color? nodeDisabledColor,
+    double? nodeMinHeight,
     Color? folderColor,
+    Color? folderExpandedColor,
     Color? nodeColor,
+    Color? nodeExpandedColor,
     Color? accountColor,
     Color? arrowColor,
+    Color? disabledIconColor,
     double? indentSize,
     double? nodeSpacing,
     Color? backgroundColor,
@@ -1142,6 +1655,14 @@ class TreeViewThemeData {
     TextStyle? folderTextStyle,
     TextStyle? nodeTextStyle,
     TextStyle? accountTextStyle,
+    TextStyle? disabledTextStyle,
+    TextStyle? selectedTextStyle,
+    Duration? expansionAnimationDuration,
+    Duration? hoverAnimationDuration,
+    Curve? expansionCurve,
+    bool? enableHoverEffects,
+    bool? enableRippleEffects,
+    Color? rippleColor,
   }) {
     return TreeViewThemeData(
       showVerticalScrollbar:
@@ -1152,6 +1673,9 @@ class TreeViewThemeData {
       scrollbarColor: scrollbarColor ?? this.scrollbarColor,
       scrollbarTrackColor: scrollbarTrackColor ?? this.scrollbarTrackColor,
       scrollbarHoverOnly: scrollbarHoverOnly ?? this.scrollbarHoverOnly,
+      scrollbarOpacity: scrollbarOpacity ?? this.scrollbarOpacity,
+      scrollbarHoverOpacity:
+          scrollbarHoverOpacity ?? this.scrollbarHoverOpacity,
       nodeVerticalPadding: nodeVerticalPadding ?? this.nodeVerticalPadding,
       nodeHorizontalPadding:
           nodeHorizontalPadding ?? this.nodeHorizontalPadding,
@@ -1159,10 +1683,16 @@ class TreeViewThemeData {
       iconSpacing: iconSpacing ?? this.iconSpacing,
       nodeBorderRadius: nodeBorderRadius ?? this.nodeBorderRadius,
       nodeHoverColor: nodeHoverColor ?? this.nodeHoverColor,
+      nodeSelectedColor: nodeSelectedColor ?? this.nodeSelectedColor,
+      nodeDisabledColor: nodeDisabledColor ?? this.nodeDisabledColor,
+      nodeMinHeight: nodeMinHeight ?? this.nodeMinHeight,
       folderColor: folderColor ?? this.folderColor,
+      folderExpandedColor: folderExpandedColor ?? this.folderExpandedColor,
       nodeColor: nodeColor ?? this.nodeColor,
+      nodeExpandedColor: nodeExpandedColor ?? this.nodeExpandedColor,
       accountColor: accountColor ?? this.accountColor,
       arrowColor: arrowColor ?? this.arrowColor,
+      disabledIconColor: disabledIconColor ?? this.disabledIconColor,
       indentSize: indentSize ?? this.indentSize,
       nodeSpacing: nodeSpacing ?? this.nodeSpacing,
       backgroundColor: backgroundColor ?? this.backgroundColor,
@@ -1172,7 +1702,39 @@ class TreeViewThemeData {
       folderTextStyle: folderTextStyle ?? this.folderTextStyle,
       nodeTextStyle: nodeTextStyle ?? this.nodeTextStyle,
       accountTextStyle: accountTextStyle ?? this.accountTextStyle,
+      disabledTextStyle: disabledTextStyle ?? this.disabledTextStyle,
+      selectedTextStyle: selectedTextStyle ?? this.selectedTextStyle,
+      expansionAnimationDuration:
+          expansionAnimationDuration ?? this.expansionAnimationDuration,
+      hoverAnimationDuration:
+          hoverAnimationDuration ?? this.hoverAnimationDuration,
+      expansionCurve: expansionCurve ?? this.expansionCurve,
+      enableHoverEffects: enableHoverEffects ?? this.enableHoverEffects,
+      enableRippleEffects: enableRippleEffects ?? this.enableRippleEffects,
+      rippleColor: rippleColor ?? this.rippleColor,
     );
+  }
+
+  // 색상 계산 헬퍼들
+  Color getEffectiveNodeHoverColor(BuildContext context) {
+    return nodeHoverColor ?? Theme.of(context).hoverColor;
+  }
+
+  Color getEffectiveNodeSelectedColor(BuildContext context) {
+    return nodeSelectedColor ?? Theme.of(context).primaryColor.withOpacity(0.1);
+  }
+
+  Color getEffectiveNodeDisabledColor(BuildContext context) {
+    return nodeDisabledColor ??
+        Theme.of(context).disabledColor.withOpacity(0.1);
+  }
+
+  Color getEffectiveRippleColor(BuildContext context) {
+    return rippleColor ?? Theme.of(context).splashColor;
+  }
+
+  Color getEffectiveBorderColor(BuildContext context) {
+    return borderColor ?? Theme.of(context).dividerColor;
   }
 }
 
@@ -1690,22 +2252,33 @@ class TreeView extends StatefulWidget {
   final List<TreeNode> rootNodes;
   final Function(Account)? onAccountDoubleClick;
   final Function(Account)? onAccountRightClick;
+  final Function(TreeNode)? onNodeTap;
+  final Function(TreeNode)? onNodeDoubleClick;
+  final Function(TreeNode)? onNodeRightClick;
   final TreeViewThemeData? theme;
+  final String? selectedNodeId;
+  final Function(String?)? onSelectionChanged;
 
   const TreeView({
     super.key,
     required this.rootNodes,
     this.onAccountDoubleClick,
     this.onAccountRightClick,
+    this.onNodeTap,
+    this.onNodeDoubleClick,
+    this.onNodeRightClick,
     this.theme,
+    this.selectedNodeId,
+    this.onSelectionChanged,
   });
 
   @override
   State<TreeView> createState() => _TreeViewState();
 }
 
-class _TreeViewState extends State<TreeView> {
+class _TreeViewState extends State<TreeView> with TickerProviderStateMixin {
   final Map<String, bool> _expandedNodes = {};
+  final Map<String, AnimationController> _expansionControllers = {};
   late TreeViewWidthCalculator _widthCalculator;
   bool _isHovered = false;
 
@@ -1731,12 +2304,32 @@ class _TreeViewState extends State<TreeView> {
     }
   }
 
+  @override
+  void dispose() {
+    // 모든 애니메이션 컨트롤러 dispose
+    for (var controller in _expansionControllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
   void _initializeExpandedStates(List<TreeNode> nodes) {
     for (var node in nodes) {
       if (node is Folder || node is Node) {
         // 노드의 초기 확장 상태를 TreeNodeState에서 가져와서 적용
-        // 하지만 _expandedNodes가 이미 설정되어 있다면 그것을 우선시
         _expandedNodes[node.id] ??= node.data.isExpanded;
+
+        // 애니메이션 컨트롤러 생성
+        if (!_expansionControllers.containsKey(node.id)) {
+          final controller = AnimationController(
+            duration: _currentTheme.expansionAnimationDuration,
+            vsync: this,
+          );
+          if (_expandedNodes[node.id] ?? false) {
+            controller.value = 1.0;
+          }
+          _expansionControllers[node.id] = controller;
+        }
 
         if (node.children.isNotEmpty) {
           _initializeExpandedStates(node.children.cast<TreeNode>());
@@ -1747,8 +2340,25 @@ class _TreeViewState extends State<TreeView> {
 
   void _toggleExpansion(String nodeId) {
     setState(() {
-      _expandedNodes[nodeId] = !(_expandedNodes[nodeId] ?? false);
+      final isExpanded = _expandedNodes[nodeId] ?? false;
+      _expandedNodes[nodeId] = !isExpanded;
+
+      final controller = _expansionControllers[nodeId];
+      if (controller != null) {
+        if (!isExpanded) {
+          controller.forward();
+        } else {
+          controller.reverse();
+        }
+      }
     });
+  }
+
+  void _handleNodeSelection(TreeNode node) {
+    if (node.data.isEnabled) {
+      widget.onSelectionChanged?.call(node.id);
+      widget.onNodeTap?.call(node);
+    }
   }
 
   /// 플랫화된 노드 리스트 생성 (현재 표시되는 노드들만)
@@ -1757,12 +2367,14 @@ class _TreeViewState extends State<TreeView> {
 
     void traverse(List<TreeNode> nodes, int depth) {
       for (var node in nodes) {
-        flattened.add(_FlattenedNode(node: node, depth: depth));
+        if (node.data.isVisible) {
+          flattened.add(_FlattenedNode(node: node, depth: depth));
 
-        if ((node is Folder || node is Node) &&
-            node.children.isNotEmpty &&
-            (_expandedNodes[node.id] ?? false)) {
-          traverse(node.children.cast<TreeNode>(), depth + 1);
+          if ((node is Folder || node is Node) &&
+              node.children.isNotEmpty &&
+              (_expandedNodes[node.id] ?? false)) {
+            traverse(node.children.cast<TreeNode>(), depth + 1);
+          }
         }
       }
     }
@@ -1782,14 +2394,7 @@ class _TreeViewState extends State<TreeView> {
   /// 전체 콘텐츠 높이 계산
   double _calculateContentHeight() {
     final flattenedNodes = _getFlattenedNodes();
-    return flattenedNodes.length * _getNodeHeight();
-  }
-
-  /// 개별 노드의 높이
-  double _getNodeHeight() {
-    return _currentTheme.nodeVerticalPadding * 2 +
-        _currentTheme.nodeSpacing * 2 +
-        _currentTheme.iconSize;
+    return flattenedNodes.length * _currentTheme.nodeMinHeight;
   }
 
   @override
@@ -1816,7 +2421,7 @@ class _TreeViewState extends State<TreeView> {
           decoration: BoxDecoration(
             color: theme.backgroundColor,
             border: Border.all(
-              color: theme.borderColor ?? Colors.grey.shade300,
+              color: theme.getEffectiveBorderColor(context),
               width: theme.borderWidth,
             ),
             borderRadius: theme.borderRadius,
@@ -1833,7 +2438,6 @@ class _TreeViewState extends State<TreeView> {
                 onEnter: (_) => setState(() => _isHovered = true),
                 onExit: (_) => setState(() => _isHovered = false),
                 child: ScrollConfiguration(
-                  // Flutter 기본 스크롤바 숨기기
                   behavior: ScrollConfiguration.of(context).copyWith(
                     scrollbars: false,
                   ),
@@ -1860,7 +2464,7 @@ class _TreeViewState extends State<TreeView> {
                         ),
                       ),
 
-                      // 세로 스크롤바 (우측 오버레이)
+                      // 세로 스크롤바
                       if (theme.showVerticalScrollbar && needsVerticalScroll)
                         _buildVerticalScrollbar(
                           verticalScrollbarController,
@@ -1870,7 +2474,7 @@ class _TreeViewState extends State<TreeView> {
                           theme,
                         ),
 
-                      // 가로 스크롤바 (하단 오버레이)
+                      // 가로 스크롤바
                       if (theme.showHorizontalScrollbar &&
                           needsHorizontalScroll)
                         _buildHorizontalScrollbar(
@@ -1890,7 +2494,7 @@ class _TreeViewState extends State<TreeView> {
     );
   }
 
-  /// 세로 스크롤바 위젯 생성
+  /// 개선된 세로 스크롤바
   Widget _buildVerticalScrollbar(
     ScrollController controller,
     double availableHeight,
@@ -1903,8 +2507,10 @@ class _TreeViewState extends State<TreeView> {
       right: 0,
       bottom: needsHorizontalScroll ? theme.scrollbarWidth : 0,
       child: AnimatedOpacity(
-        opacity: theme.scrollbarHoverOnly ? (_isHovered ? 0.7 : 0.0) : 0.7,
-        duration: const Duration(milliseconds: 200),
+        opacity: theme.scrollbarHoverOnly
+            ? (_isHovered ? theme.scrollbarHoverOpacity : 0.0)
+            : theme.scrollbarOpacity,
+        duration: theme.hoverAnimationDuration,
         child: Container(
           width: theme.scrollbarWidth,
           decoration: BoxDecoration(
@@ -1939,7 +2545,7 @@ class _TreeViewState extends State<TreeView> {
     );
   }
 
-  /// 가로 스크롤바 위젯 생성
+  /// 개선된 가로 스크롤바
   Widget _buildHorizontalScrollbar(
     ScrollController controller,
     double availableWidth,
@@ -1951,8 +2557,10 @@ class _TreeViewState extends State<TreeView> {
       right: 0,
       bottom: 0,
       child: AnimatedOpacity(
-        opacity: theme.scrollbarHoverOnly ? (_isHovered ? 0.7 : 0.0) : 0.7,
-        duration: const Duration(milliseconds: 200),
+        opacity: theme.scrollbarHoverOnly
+            ? (_isHovered ? theme.scrollbarHoverOpacity : 0.0)
+            : theme.scrollbarOpacity,
+        duration: theme.hoverAnimationDuration,
         child: Container(
           height: theme.scrollbarWidth,
           decoration: BoxDecoration(
@@ -1999,8 +2607,39 @@ class _TreeViewState extends State<TreeView> {
     return const SizedBox.shrink();
   }
 
-  /// 확장 가능한 아이템 레이아웃
+  /// 노드 상태에 따른 색상 계산
+  Color? _getNodeBackgroundColor(TreeNode node) {
+    final theme = _currentTheme;
+
+    if (!node.data.isEnabled) {
+      return theme.getEffectiveNodeDisabledColor(context);
+    }
+
+    if (widget.selectedNodeId == node.id) {
+      return theme.getEffectiveNodeSelectedColor(context);
+    }
+
+    return null;
+  }
+
+  /// 노드 상태에 따른 텍스트 스타일 계산
+  TextStyle _getNodeTextStyle(TreeNode node, TextStyle baseStyle) {
+    final theme = _currentTheme;
+
+    if (!node.data.isEnabled) {
+      return theme.disabledTextStyle;
+    }
+
+    if (widget.selectedNodeId == node.id) {
+      return theme.selectedTextStyle;
+    }
+
+    return baseStyle;
+  }
+
+  /// 확장 가능한 아이템 레이아웃 (hover와 선택 영역 일치)
   Widget _buildExpandableItemLayout({
+    required TreeNode node,
     required int depth,
     required Widget arrowIcon,
     required Widget mainIcon,
@@ -2010,10 +2649,13 @@ class _TreeViewState extends State<TreeView> {
   }) {
     final theme = _currentTheme;
     final indent = theme.indentSize * depth;
+    final isSelected = widget.selectedNodeId == node.id;
+    final isEnabled = node.data.isEnabled;
 
     return Padding(
       padding: EdgeInsets.only(left: indent),
       child: Container(
+        constraints: BoxConstraints(minHeight: theme.nodeMinHeight),
         padding: EdgeInsets.symmetric(
           horizontal: theme.nodeHorizontalPadding,
           vertical: theme.nodeVerticalPadding,
@@ -2022,25 +2664,46 @@ class _TreeViewState extends State<TreeView> {
           mainAxisSize: MainAxisSize.min,
           children: [
             SizedBox(
-              width: 20.0, // 화살표 아이콘 너비 고정
+              width: 20.0,
               child: arrowIcon,
             ),
-            CustomInkwell(
-              onTap: onTap,
-              borderRadius: theme.nodeBorderRadius,
-              hoverColor: theme.nodeHoverColor,
-              child: Padding(
-                padding: EdgeInsets.symmetric(
-                  vertical: theme.nodeSpacing,
-                  horizontal: 8.0, // 콘텐츠 패딩 고정
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    mainIcon,
-                    SizedBox(width: theme.iconSpacing),
-                    Text(text, style: textStyle),
-                  ],
+            Opacity(
+              opacity: isEnabled ? 1.0 : 0.5,
+              child: CustomInkwell(
+                onTap: isEnabled
+                    ? () {
+                        _handleNodeSelection(node);
+                        onTap?.call();
+                      }
+                    : null,
+                borderRadius: theme.nodeBorderRadius,
+                hoverColor: theme.enableHoverEffects
+                    ? theme.getEffectiveNodeHoverColor(context)
+                    : null,
+                splashColor: theme.enableRippleEffects
+                    ? theme.getEffectiveRippleColor(context)
+                    : null,
+                child: AnimatedContainer(
+                  duration: theme.hoverAnimationDuration,
+                  decoration: BoxDecoration(
+                    color: _getNodeBackgroundColor(node), // 선택된 배경색을 여기로 이동
+                    borderRadius: theme.nodeBorderRadius,
+                  ),
+                  padding: EdgeInsets.symmetric(
+                    vertical: theme.nodeSpacing,
+                    horizontal: 8.0,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      mainIcon,
+                      SizedBox(width: theme.iconSpacing),
+                      Text(
+                        text,
+                        style: _getNodeTextStyle(node, textStyle),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -2050,8 +2713,9 @@ class _TreeViewState extends State<TreeView> {
     );
   }
 
-  /// Account 아이템 레이아웃
+  /// Account 아이템 레이아웃 (hover와 선택 영역 일치)
   Widget _buildAccountItemLayout({
+    required TreeNode node,
     required int depth,
     required Widget mainIcon,
     required String text,
@@ -2061,10 +2725,12 @@ class _TreeViewState extends State<TreeView> {
   }) {
     final theme = _currentTheme;
     final indent = theme.indentSize * depth;
+    final isEnabled = node.data.isEnabled;
 
     return Padding(
       padding: EdgeInsets.only(left: indent),
       child: Container(
+        constraints: BoxConstraints(minHeight: theme.nodeMinHeight),
         padding: EdgeInsets.symmetric(
           horizontal: theme.nodeHorizontalPadding,
           vertical: theme.nodeVerticalPadding,
@@ -2072,24 +2738,55 @@ class _TreeViewState extends State<TreeView> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(width: 20.0), // 화살표 아이콘 공간
-            CustomInkwell(
-              onDoubleTap: onDoubleTap,
-              onRightClick: onRightClick,
-              borderRadius: theme.nodeBorderRadius,
-              hoverColor: theme.nodeHoverColor,
-              child: Padding(
-                padding: EdgeInsets.symmetric(
-                  vertical: theme.nodeSpacing,
-                  horizontal: 8.0, // 콘텐츠 패딩 고정
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    mainIcon,
-                    SizedBox(width: theme.iconSpacing),
-                    Text(text, style: textStyle),
-                  ],
+            const SizedBox(width: 20.0),
+            Opacity(
+              opacity: isEnabled ? 1.0 : 0.5,
+              child: CustomInkwell(
+                onDoubleTap: isEnabled
+                    ? () {
+                        if (node is Account) {
+                          widget.onAccountDoubleClick?.call(node);
+                        }
+                        onDoubleTap?.call();
+                      }
+                    : null,
+                onRightClick: isEnabled
+                    ? () {
+                        if (node is Account) {
+                          widget.onAccountRightClick?.call(node);
+                        }
+                        onRightClick?.call();
+                      }
+                    : null,
+                onTap: isEnabled ? () => _handleNodeSelection(node) : null,
+                borderRadius: theme.nodeBorderRadius,
+                hoverColor: theme.enableHoverEffects
+                    ? theme.getEffectiveNodeHoverColor(context)
+                    : null,
+                splashColor: theme.enableRippleEffects
+                    ? theme.getEffectiveRippleColor(context)
+                    : null,
+                child: AnimatedContainer(
+                  duration: theme.hoverAnimationDuration,
+                  decoration: BoxDecoration(
+                    color: _getNodeBackgroundColor(node), // 선택된 배경색을 여기로 이동
+                    borderRadius: theme.nodeBorderRadius,
+                  ),
+                  padding: EdgeInsets.symmetric(
+                    vertical: theme.nodeSpacing,
+                    horizontal: 8.0,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      mainIcon,
+                      SizedBox(width: theme.iconSpacing),
+                      Text(
+                        text,
+                        style: _getNodeTextStyle(node, textStyle),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -2099,67 +2796,108 @@ class _TreeViewState extends State<TreeView> {
     );
   }
 
-  /// 폴더 노드 빌드
+  /// 폴더 노드 빌드 (완전히 테마 적용)
   Widget _buildFolderNode(Folder folder, int depth) {
     final theme = _currentTheme;
     final isExpanded = _expandedNodes[folder.id] ?? false;
+    final controller = _expansionControllers[folder.id];
 
     return _buildExpandableItemLayout(
+      node: folder,
       depth: depth,
-      arrowIcon: RotationTransition(
-        turns: AlwaysStoppedAnimation(isExpanded ? 0.25 : 0.0),
-        child: Icon(
-          Icons.keyboard_arrow_right,
-          size: 16,
-          color: theme.arrowColor,
-        ),
-      ),
+      arrowIcon: controller != null
+          ? RotationTransition(
+              turns: Tween(begin: 0.0, end: 0.25).animate(
+                CurvedAnimation(
+                  parent: controller,
+                  curve: theme.expansionCurve,
+                ),
+              ),
+              child: Icon(
+                Icons.keyboard_arrow_right,
+                size: 16,
+                color: folder.data.isEnabled
+                    ? theme.arrowColor
+                    : theme.disabledIconColor,
+              ),
+            )
+          : Icon(
+              Icons.keyboard_arrow_right,
+              size: 16,
+              color: folder.data.isEnabled
+                  ? theme.arrowColor
+                  : theme.disabledIconColor,
+            ),
       mainIcon: Icon(
         isExpanded ? Icons.folder_open : Icons.folder,
-        color: theme.folderColor,
+        color: folder.data.isEnabled
+            ? (isExpanded ? theme.folderExpandedColor : theme.folderColor)
+            : theme.disabledIconColor,
         size: theme.iconSize,
       ),
       text: folder.name,
       textStyle: theme.folderTextStyle,
-      onTap: () => _toggleExpansion(folder.id),
+      onTap: folder.data.isEnabled ? () => _toggleExpansion(folder.id) : null,
     );
   }
 
-  /// 노드 아이템 빌드
+  /// 노드 아이템 빌드 (완전히 테마 적용)
   Widget _buildNodeItem(Node node, int depth) {
     final theme = _currentTheme;
     final isExpanded = _expandedNodes[node.id] ?? false;
+    final controller = _expansionControllers[node.id];
 
     return _buildExpandableItemLayout(
+      node: node,
       depth: depth,
-      arrowIcon: RotationTransition(
-        turns: AlwaysStoppedAnimation(isExpanded ? 0.25 : 0.0),
-        child: Icon(
-          Icons.keyboard_arrow_right,
-          size: 16,
-          color: theme.arrowColor,
-        ),
-      ),
+      arrowIcon: controller != null
+          ? RotationTransition(
+              turns: Tween(begin: 0.0, end: 0.25).animate(
+                CurvedAnimation(
+                  parent: controller,
+                  curve: theme.expansionCurve,
+                ),
+              ),
+              child: Icon(
+                Icons.keyboard_arrow_right,
+                size: 16,
+                color: node.data.isEnabled
+                    ? theme.arrowColor
+                    : theme.disabledIconColor,
+              ),
+            )
+          : Icon(
+              Icons.keyboard_arrow_right,
+              size: 16,
+              color: node.data.isEnabled
+                  ? theme.arrowColor
+                  : theme.disabledIconColor,
+            ),
       mainIcon: Icon(
         isExpanded ? Icons.dns : Icons.storage,
-        color: theme.nodeColor,
+        color: node.data.isEnabled
+            ? (isExpanded ? theme.nodeExpandedColor : theme.nodeColor)
+            : theme.disabledIconColor,
         size: theme.iconSize,
       ),
       text: node.name,
       textStyle: theme.nodeTextStyle,
-      onTap: () => _toggleExpansion(node.id),
+      onTap: node.data.isEnabled ? () => _toggleExpansion(node.id) : null,
     );
   }
 
-  /// Account 아이템 빌드
+  /// Account 아이템 빌드 (완전히 테마 적용)
   Widget _buildAccountItem(Account account, int depth) {
     final theme = _currentTheme;
 
     return _buildAccountItemLayout(
+      node: account,
       depth: depth,
       mainIcon: Icon(
         Icons.account_circle,
-        color: theme.accountColor,
+        color: account.data.isEnabled
+            ? theme.accountColor
+            : theme.disabledIconColor,
         size: theme.iconSize,
       ),
       text: account.name,

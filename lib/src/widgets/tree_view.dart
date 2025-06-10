@@ -20,6 +20,8 @@ class _FlattenedNode {
 
 class TreeView extends StatefulWidget {
   final List<TreeNode> rootNodes;
+  final Set<String> expandedNodeIds;
+  final Function(String nodeId, bool isExpanded)? onExpansionChanged;
   final Function(Account)? onAccountDoubleClick;
   final Function(Account)? onAccountRightClick;
   final Function(TreeNode)? onNodeTap;
@@ -32,6 +34,8 @@ class TreeView extends StatefulWidget {
   const TreeView({
     super.key,
     required this.rootNodes,
+    required this.expandedNodeIds,
+    this.onExpansionChanged,
     this.onAccountDoubleClick,
     this.onAccountRightClick,
     this.onNodeTap,
@@ -47,7 +51,6 @@ class TreeView extends StatefulWidget {
 }
 
 class _TreeViewState extends State<TreeView> with TickerProviderStateMixin {
-  final Map<String, bool> _expandedNodes = {};
   final Map<String, AnimationController> _expansionControllers = {};
   late TreeViewWidthCalculator _widthCalculator;
   bool _isHovered = false;
@@ -58,8 +61,8 @@ class _TreeViewState extends State<TreeView> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _initializeExpandedStates(widget.rootNodes);
     _widthCalculator = TreeViewWidthCalculator(theme: _currentTheme);
+    _initializeAnimationControllers();
   }
 
   @override
@@ -68,8 +71,14 @@ class _TreeViewState extends State<TreeView> with TickerProviderStateMixin {
     if (widget.theme != oldWidget.theme) {
       _widthCalculator = TreeViewWidthCalculator(theme: _currentTheme);
     }
+
+    // 확장 상태가 변경되었을 때 애니메이션 동기화
+    if (widget.expandedNodeIds != oldWidget.expandedNodeIds) {
+      _updateAnimationControllers();
+    }
+
     if (widget.rootNodes != oldWidget.rootNodes) {
-      _initializeExpandedStates(widget.rootNodes);
+      _initializeAnimationControllers();
     }
   }
 
@@ -81,43 +90,56 @@ class _TreeViewState extends State<TreeView> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  void _initializeExpandedStates(List<TreeNode> nodes) {
+  void _initializeAnimationControllers() {
+    // 기존 컨트롤러들 정리
+    for (var controller in _expansionControllers.values) {
+      controller.dispose();
+    }
+    _expansionControllers.clear();
+
+    // 모든 확장 가능한 노드에 대해 컨트롤러 생성
+    _createControllersForNodes(widget.rootNodes);
+  }
+
+  void _createControllersForNodes(List<TreeNode> nodes) {
     for (var node in nodes) {
       if (node is Folder || node is Node) {
-        _expandedNodes[node.id] ??= node.data.isExpanded;
+        final controller = AnimationController(
+          duration: _currentTheme.expansionAnimationDuration,
+          vsync: this,
+        );
 
-        if (!_expansionControllers.containsKey(node.id)) {
-          final controller = AnimationController(
-            duration: _currentTheme.expansionAnimationDuration,
-            vsync: this,
-          );
-          if (_expandedNodes[node.id] ?? false) {
-            controller.value = 1.0;
-          }
-          _expansionControllers[node.id] = controller;
+        // 현재 확장 상태에 맞게 초기값 설정
+        if (widget.expandedNodeIds.contains(node.id)) {
+          controller.value = 1.0;
         }
 
+        _expansionControllers[node.id] = controller;
+
         if (node.children.isNotEmpty) {
-          _initializeExpandedStates(node.children.cast<TreeNode>());
+          _createControllersForNodes(node.children.cast<TreeNode>());
         }
       }
     }
   }
 
-  void _toggleExpansion(String nodeId) {
-    setState(() {
-      final isExpanded = _expandedNodes[nodeId] ?? false;
-      _expandedNodes[nodeId] = !isExpanded;
+  void _updateAnimationControllers() {
+    for (var entry in _expansionControllers.entries) {
+      final nodeId = entry.key;
+      final controller = entry.value;
+      final shouldBeExpanded = widget.expandedNodeIds.contains(nodeId);
 
-      final controller = _expansionControllers[nodeId];
-      if (controller != null) {
-        if (!isExpanded) {
-          controller.forward();
-        } else {
-          controller.reverse();
-        }
+      if (shouldBeExpanded && controller.value == 0.0) {
+        controller.forward();
+      } else if (!shouldBeExpanded && controller.value == 1.0) {
+        controller.reverse();
       }
-    });
+    }
+  }
+
+  void _handleExpansionToggle(String nodeId) {
+    final isCurrentlyExpanded = widget.expandedNodeIds.contains(nodeId);
+    widget.onExpansionChanged?.call(nodeId, !isCurrentlyExpanded);
   }
 
   void _handleNodeSelection(TreeNode node) {
@@ -137,7 +159,7 @@ class _TreeViewState extends State<TreeView> with TickerProviderStateMixin {
 
           if ((node is Folder || node is Node) &&
               node.children.isNotEmpty &&
-              (_expandedNodes[node.id] ?? false)) {
+              widget.expandedNodeIds.contains(node.id)) {
             traverse(node.children.cast<TreeNode>(), depth + 1);
           }
         }
@@ -149,9 +171,15 @@ class _TreeViewState extends State<TreeView> with TickerProviderStateMixin {
   }
 
   double _calculateCurrentContentWidth() {
+    // expandedNodeIds를 Map 형태로 변환
+    final expandedNodesMap = <String, bool>{};
+    for (var nodeId in widget.expandedNodeIds) {
+      expandedNodesMap[nodeId] = true;
+    }
+
     return _widthCalculator.calculateVisibleContentWidth(
       widget.rootNodes,
-      _expandedNodes,
+      expandedNodesMap,
     );
   }
 
@@ -252,28 +280,29 @@ class _TreeViewState extends State<TreeView> with TickerProviderStateMixin {
 
   Widget _buildTreeNode(TreeNode node, int depth) {
     final isSelected = widget.selectedNodeId == node.id;
+    final isExpanded = widget.expandedNodeIds.contains(node.id);
 
     if (node is Folder) {
       return FolderWidget(
         folder: node,
         depth: depth,
         theme: _currentTheme,
-        isExpanded: _expandedNodes[node.id] ?? false,
+        isExpanded: isExpanded,
         isSelected: isSelected,
         expansionController: _expansionControllers[node.id],
         onSelection: () => _handleNodeSelection(node),
-        onTap: () => _toggleExpansion(node.id),
+        onTap: () => _handleExpansionToggle(node.id),
       );
     } else if (node is Node) {
       return NodeWidget(
         node: node,
         depth: depth,
         theme: _currentTheme,
-        isExpanded: _expandedNodes[node.id] ?? false,
+        isExpanded: isExpanded,
         isSelected: isSelected,
         expansionController: _expansionControllers[node.id],
         onSelection: () => _handleNodeSelection(node),
-        onTap: () => _toggleExpansion(node.id),
+        onTap: () => _handleExpansionToggle(node.id),
       );
     } else if (node is Account) {
       return AccountWidget(

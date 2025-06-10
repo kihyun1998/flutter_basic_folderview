@@ -36,6 +36,9 @@ class _TreeViewPageState extends State<TreeViewPage> {
   String currentTheme = 'default';
   String currentDataSet = 'simple';
 
+  // 🎯 확장 상태를 외부에서 관리
+  Set<String> expandedNodeIds = {};
+
   // 다양한 테마들
   final Map<String, TreeViewThemeData> themes = {
     'default': TreeViewThemeData.defaultTheme(),
@@ -81,6 +84,35 @@ class _TreeViewPageState extends State<TreeViewPage> {
   void initState() {
     super.initState();
     rootNodes = ImprovedMockData.createSimpleTestData();
+    _initializeExpandedStates();
+  }
+
+  // 🎯 초기 확장 상태 설정 (TreeNodeState.isExpanded 기반)
+  void _initializeExpandedStates() {
+    expandedNodeIds.clear();
+    _collectExpandedNodes(rootNodes);
+  }
+
+  void _collectExpandedNodes(List<TreeNode> nodes) {
+    for (var node in nodes) {
+      if ((node is Folder || node is Node) && node.data.isExpanded) {
+        expandedNodeIds.add(node.id);
+      }
+      if (node.children.isNotEmpty) {
+        _collectExpandedNodes(node.children.cast<TreeNode>());
+      }
+    }
+  }
+
+  // 🎯 확장/축소 상태 변경 핸들러
+  void _onExpansionChanged(String nodeId, bool isExpanded) {
+    setState(() {
+      if (isExpanded) {
+        expandedNodeIds.add(nodeId);
+      } else {
+        expandedNodeIds.remove(nodeId);
+      }
+    });
   }
 
   void _onAccountDoubleClick(Account account) {
@@ -172,17 +204,59 @@ class _TreeViewPageState extends State<TreeViewPage> {
           rootNodes = ImprovedMockData.createDisabledNodesDemo();
           break;
       }
-      selectedNodeId = null; // 데이터 변경 시 선택 초기화
+      selectedNodeId = null;
+      _initializeExpandedStates(); // 데이터 변경 시 확장 상태 재설정
+    });
+  }
+
+  // 🎯 모든 폴더/노드 확장
+  void _expandAll() {
+    setState(() {
+      expandedNodeIds.clear();
+      _addAllExpandableNodes(rootNodes);
+    });
+  }
+
+  void _addAllExpandableNodes(List<TreeNode> nodes) {
+    for (var node in nodes) {
+      if ((node is Folder || node is Node) && node.children.isNotEmpty) {
+        expandedNodeIds.add(node.id);
+        _addAllExpandableNodes(node.children.cast<TreeNode>());
+      }
+    }
+  }
+
+  // 🎯 모든 폴더/노드 축소
+  void _collapseAll() {
+    setState(() {
+      expandedNodeIds.clear();
+    });
+  }
+
+  // 🎯 특정 노드만 확장 (API 제어 시뮬레이션)
+  void _expandSpecificNodes() {
+    setState(() {
+      expandedNodeIds.clear();
+      // 예: 첫 번째 폴더와 그 안의 첫 번째 노드만 확장
+      if (rootNodes.isNotEmpty && rootNodes[0] is Folder) {
+        expandedNodeIds.add(rootNodes[0].id);
+        final firstFolder = rootNodes[0];
+        if (firstFolder.children.isNotEmpty) {
+          final firstChild = firstFolder.children[0];
+          if (firstChild is TreeNode &&
+              (firstChild is Folder || firstChild is Node)) {
+            expandedNodeIds.add(firstChild.id);
+          }
+        }
+      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
       appBar: AppBar(
-        title: const Text('TreeView Theme Demo'),
+        title: const Text('TreeView External State Demo'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
           // 테마 선택 버튼
@@ -263,7 +337,7 @@ class _TreeViewPageState extends State<TreeViewPage> {
       ),
       body: Column(
         children: [
-          // 현재 상태 표시
+          // 현재 상태 표시 및 제어 버튼들
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16.0),
@@ -272,22 +346,30 @@ class _TreeViewPageState extends State<TreeViewPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Current Settings',
+                  'Current Settings & Controls',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 8),
-                Row(
+
+                // 🎯 확장 제어 버튼들
+                Wrap(
+                  spacing: 8,
                   children: [
-                    Text(
-                        'Theme: ${currentTheme.replaceAll('_', ' ').toUpperCase()}'),
-                    const SizedBox(width: 24),
-                    Text(
-                        'Data: ${currentDataSet.replaceAll('_', ' ').toUpperCase()}'),
-                    const SizedBox(width: 24),
-                    if (selectedNodeId != null)
-                      Text('Selected: $selectedNodeId')
-                    else
-                      const Text('Selected: None'),
+                    ElevatedButton.icon(
+                      onPressed: _expandAll,
+                      icon: const Icon(Icons.unfold_more, size: 16),
+                      label: const Text('Expand All'),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: _collapseAll,
+                      icon: const Icon(Icons.unfold_less, size: 16),
+                      label: const Text('Collapse All'),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: _expandSpecificNodes,
+                      icon: const Icon(Icons.api, size: 16),
+                      label: const Text('API Control Demo'),
+                    ),
                   ],
                 ),
               ],
@@ -300,6 +382,8 @@ class _TreeViewPageState extends State<TreeViewPage> {
               padding: const EdgeInsets.all(16.0),
               child: TreeView(
                 rootNodes: rootNodes,
+                expandedNodeIds: expandedNodeIds,
+                onExpansionChanged: _onExpansionChanged,
                 onAccountDoubleClick: _onAccountDoubleClick,
                 onAccountRightClick: _onAccountRightClick,
                 onNodeTap: _onNodeTap,
@@ -308,64 +392,6 @@ class _TreeViewPageState extends State<TreeViewPage> {
                 theme: themes[currentTheme],
               ),
             ),
-          ),
-        ],
-      ),
-
-      // 정보 패널
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showInfoDialog(),
-        tooltip: 'Show Info',
-        child: const Icon(Icons.info),
-      ),
-    );
-  }
-
-  void _showInfoDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('TreeView Theme Demo'),
-        content: const SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Available Themes:',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              Text('• Default - Standard theme'),
-              Text('• Dark - Dark mode theme'),
-              Text('• Compact - Smaller spacing'),
-              Text('• Custom Blue - Blue color scheme'),
-              Text('• Custom Green - Green color scheme'),
-              Text('• Minimal - No scrollbars, no borders'),
-              SizedBox(height: 16),
-              Text(
-                'Available Data Sets:',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              Text('• Simple Data - Basic test data'),
-              Text('• Complex Data - Large hierarchical data'),
-              Text('• Mixed States - Various node states'),
-              Text('• Disabled Demo - Shows disabled nodes'),
-              SizedBox(height: 16),
-              Text(
-                'Interactions:',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              Text('• Click to select nodes'),
-              Text('• Double-click accounts for details'),
-              Text('• Right-click accounts for context'),
-              Text('• Click folders/nodes to expand/collapse'),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
           ),
         ],
       ),
